@@ -1,0 +1,289 @@
+import React, { useState } from 'react'
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Modal } from '@/components/ui/modal'
+import { useToast } from '@/components/ui/toast'
+import { TransportTrip, TripStatus } from '@/types'
+import { MapPin, Plus, Hotel, ChevronRight } from 'lucide-react'
+
+const MOCK_TRIPS: TransportTrip[] = [
+  {
+    id: 'tr-1',
+    bookingCode: 'TRIP-901',
+    propertyId: 'prop-001',
+    passengerName: 'Lord Sterling Crawford',
+    passengerPhone: '+44 20 7946 0912',
+    roomNumber: '501',
+    tripType: 'airport_transfer',
+    pickupLocation: 'JFK International Airport (Terminal 4)',
+    dropoffLocation: 'Grand Horizon Palace Hotel',
+    scheduledTime: '2026-09-17 19:30',
+    vehicleType: 'Luxury SUV',
+    driverName: 'Liam O\'Connor',
+    driverPhone: '+1 212 555 0199',
+    vehiclePlate: 'NY-VIP-88',
+    fare: 220,
+    status: 'en_route',
+  },
+  {
+    id: 'tr-2',
+    bookingCode: 'TRIP-902',
+    propertyId: 'prop-001',
+    passengerName: 'Elena Rostova',
+    passengerPhone: '+41 22 555 0192',
+    roomNumber: '304',
+    tripType: 'hourly_chauffeur',
+    pickupLocation: 'Grand Horizon Palace Hotel',
+    dropoffLocation: 'Wall Street Financial District',
+    scheduledTime: '2026-09-17 21:00',
+    vehicleType: 'Sedan',
+    driverName: 'Carlos Mendez',
+    driverPhone: '+1 212 555 0144',
+    vehiclePlate: 'NY-EXE-42',
+    fare: 160,
+    status: 'assigned',
+  },
+]
+
+export const TransportHub: React.FC = () => {
+  const { success } = useToast()
+  const [trips, setTrips] = useState<TransportTrip[]>(MOCK_TRIPS)
+  const [isBookOpen, setIsBookOpen] = useState(false)
+
+  // Booking fields
+  const [pName, setPName] = useState('')
+  const [pRoom, setPRoom] = useState('501')
+  const [pPickup, setPPickup] = useState('')
+  const [pDrop, setPDrop] = useState('')
+  const [pVehicle, setPVehicle] = useState<'Sedan' | 'Luxury SUV' | 'Van' | 'Executive Coach'>('Luxury SUV')
+  const [pFare, setPFare] = useState('180')
+
+  const handleBookTrip = (e: React.FormEvent) => {
+    e.preventDefault()
+    const newTrip: TransportTrip = {
+      id: `tr-${Date.now()}`,
+      bookingCode: `TRIP-${Math.floor(100 + Math.random() * 900)}`,
+      propertyId: 'prop-001',
+      passengerName: pName,
+      passengerPhone: '+1 555 0100',
+      roomNumber: pRoom,
+      tripType: 'airport_transfer',
+      pickupLocation: pPickup,
+      dropoffLocation: pDrop,
+      scheduledTime: '2026-09-17 22:00',
+      vehicleType: pVehicle,
+      fare: parseFloat(pFare) || 150,
+      status: 'requested',
+    }
+    setTrips([...trips, newTrip])
+    success('Transport Dispatch Scheduled', `Transfer ${newTrip.bookingCode} registered for ${pName}.`)
+    setIsBookOpen(false)
+  }
+
+  const handleAdvanceTrip = (tripId: string) => {
+    setTrips((prev) =>
+      prev.map((t) => {
+        if (t.id !== tripId) return t
+        let next: TripStatus = t.status
+        if (t.status === 'requested') next = 'assigned'
+        else if (t.status === 'assigned') next = 'en_route'
+        else if (t.status === 'en_route') next = 'arrived'
+        else if (t.status === 'arrived') next = 'picked_up'
+        else if (t.status === 'picked_up') next = 'completed'
+        else if (t.status === 'completed') next = 'billed'
+        return { ...t, status: next }
+      })
+    )
+    success('Trip Status Progressed', 'Status updated along authoritative dispatch lifecycle.')
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Fleet & Chauffeur Dispatch</h1>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Airport limousine bookings, hourly chauffeur dispatch, and scheduled shuttle routes
+          </p>
+        </div>
+        <Button size="sm" className="gap-1.5" onClick={() => setIsBookOpen(true)}>
+          <Plus className="h-4 w-4" />
+          Schedule Chauffeur Transfer
+        </Button>
+      </div>
+
+      <Card>
+        <CardHeader className="pb-3 border-b border-border">
+          <CardTitle className="text-base">Active Fleet Dispatch Operations</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Booking Code</TableHead>
+                <TableHead>Passenger / Room</TableHead>
+                <TableHead>Route (Pickup → Drop)</TableHead>
+                <TableHead>Schedule</TableHead>
+                <TableHead>Vehicle & Driver</TableHead>
+                <TableHead>Fare</TableHead>
+                <TableHead>Dispatch State</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {trips.map((tr) => (
+                <TableRow key={tr.id}>
+                  <TableCell className="font-mono font-bold text-xs text-primary">{tr.bookingCode}</TableCell>
+                  <TableCell>
+                    <div className="font-bold text-xs text-foreground">{tr.passengerName}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono flex items-center gap-1">
+                      <Hotel className="h-3 w-3" /> Room {tr.roomNumber}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    <div className="flex items-center gap-1 text-foreground font-medium">
+                      <MapPin className="h-3 w-3 text-emerald-600" />
+                      <span>{tr.pickupLocation}</span>
+                    </div>
+                    <div className="flex items-center gap-1 text-muted-foreground mt-0.5">
+                      <MapPin className="h-3 w-3 text-rose-600" />
+                      <span>{tr.dropoffLocation}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground font-mono">{tr.scheduledTime}</TableCell>
+                  <TableCell className="text-xs">
+                    <div className="font-semibold text-foreground">{tr.driverName || 'Awaiting Driver'}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {tr.vehicleType} • {tr.vehiclePlate || 'Unassigned'}
+                    </div>
+                  </TableCell>
+                  <TableCell className="font-bold font-mono text-xs text-foreground">${tr.fare}</TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        tr.status === 'completed' || tr.status === 'billed'
+                          ? 'success'
+                          : tr.status === 'en_route'
+                          ? 'info'
+                          : 'warning'
+                      }
+                    >
+                      {tr.status.replace(/_/g, ' ').toUpperCase()}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {tr.status !== 'billed' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => handleAdvanceTrip(tr.id)}
+                      >
+                        <span>Advance</span>
+                        <ChevronRight className="h-3 w-3 ml-1" />
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Book Chauffeur Modal */}
+      <Modal
+        isOpen={isBookOpen}
+        onClose={() => setIsBookOpen(false)}
+        title="Schedule Chauffeur Transfer"
+        description="Book executive transport and assign fleet vehicle"
+        maxWidth="md"
+      >
+        <form onSubmit={handleBookTrip} className="space-y-4 text-xs">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-foreground mb-1">Passenger Full Name</label>
+              <input
+                type="text"
+                value={pName}
+                onChange={(e) => setPName(e.target.value)}
+                placeholder="e.g. Lord Sterling Crawford"
+                required
+                className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-foreground mb-1">Bill to Room #</label>
+              <input
+                type="text"
+                value={pRoom}
+                onChange={(e) => setPRoom(e.target.value)}
+                placeholder="e.g. 501"
+                required
+                className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:ring-2 focus:ring-primary"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block font-semibold text-foreground mb-1">Pickup Location</label>
+            <input
+              type="text"
+              value={pPickup}
+              onChange={(e) => setPPickup(e.target.value)}
+              placeholder="e.g. JFK Airport Terminal 4 Baggage Claim"
+              required
+              className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:ring-2 focus:ring-primary"
+            />
+          </div>
+
+          <div>
+            <label className="block font-semibold text-foreground mb-1">Drop-off Destination</label>
+            <input
+              type="text"
+              value={pDrop}
+              onChange={(e) => setPDrop(e.target.value)}
+              placeholder="e.g. Grand Horizon Palace Hotel"
+              required
+              className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:ring-2 focus:ring-primary"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-foreground mb-1">Fleet Vehicle Category</label>
+              <select
+                value={pVehicle}
+                onChange={(e) => setPVehicle(e.target.value as any)}
+                className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:ring-2 focus:ring-primary"
+              >
+                <option value="Luxury SUV">Cadillac Escalade ESV (Luxury SUV)</option>
+                <option value="Sedan">Mercedes-Benz S-Class (Sedan)</option>
+                <option value="Van">Mercedes Sprinter Jet-Van (8 Pax)</option>
+              </select>
+            </div>
+            <div>
+              <label className="block font-semibold text-foreground mb-1">Agreed Fare ($ USD)</label>
+              <input
+                type="number"
+                value={pFare}
+                onChange={(e) => setPFare(e.target.value)}
+                required
+                className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:ring-2 focus:ring-primary font-mono"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <Button variant="outline" type="button" onClick={() => setIsBookOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit">Dispatch Chauffeur</Button>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  )
+}
