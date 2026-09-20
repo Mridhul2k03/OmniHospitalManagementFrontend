@@ -33,6 +33,7 @@ const ShareholderPortal = React.lazy(() => import('@/features/shareholder/Shareh
 const HRHub = React.lazy(() => import('@/features/hr/HRHub').then(m => ({ default: m.HRHub })))
 const LoyaltyHub = React.lazy(() => import('@/features/loyalty/LoyaltyHub').then(m => ({ default: m.LoyaltyHub })))
 const SettingsHub = React.lazy(() => import('@/features/settings/SettingsHub').then(m => ({ default: m.SettingsHub })))
+const StudentsHub = React.lazy(() => import('@/features/education/StudentsHub').then(m => ({ default: m.StudentsHub })))
 
 export const AppRouter: React.FC = () => {
   return (
@@ -100,6 +101,7 @@ export const AppRouter: React.FC = () => {
             <Route path="channels" element={<ChannelsHub />} />
             <Route path="corporate" element={<ExecutiveDashboard />} />
             <Route path="hr" element={<HRHub />} />
+            <Route path="students" element={<StudentsHub />} />
             <Route path="loyalty" element={<LoyaltyHub />} />
             <Route path="settings" element={<SettingsHub />} />
             <Route path="access-denied" element={<AccessDeniedView />} />

@@ -630,3 +630,224 @@ export interface Driver {
   status: 'available' | 'on_trip' | 'off_duty'
 }
 
+// ==========================================
+// OMNIEDUCATIONAL SAAS BACKEND INTEGRATION TYPES
+// ==========================================
+
+export interface ApiEnvelope<T> {
+  success: boolean
+  data: T
+  meta?: {
+    request_id?: string
+    [key: string]: unknown
+  }
+}
+
+export interface ApiPaginatedEnvelope<T> {
+  success: boolean
+  data: T[]
+  meta: {
+    count: number
+    total_pages: number
+    current_page: number
+    page_size: number
+    next: string | null
+    previous: string | null
+    request_id?: string
+  }
+}
+
+export interface InstitutionTenant {
+  id: string
+  name: string
+  slug: string
+  institution_type?: 'k12_school' | 'university_college' | 'coaching_institute' | 'vocational' | string
+  is_default?: boolean
+  domain?: string
+  features?: Record<string, boolean>
+  terminology?: Record<string, string>
+}
+
+export interface EduUser {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  full_name: string
+  is_staff?: boolean
+  role?: string
+  permissions?: string[]
+}
+
+export interface AuthLoginResponse {
+  access?: string
+  refresh?: string
+  user: EduUser
+  accessible_tenants: InstitutionTenant[]
+  active_tenant: InstitutionTenant
+}
+
+export interface StudentGuardianLink {
+  id: string
+  guardian_name: string
+  relationship: string
+  phone_number: string
+  is_primary?: boolean
+}
+
+export interface Student {
+  id: string
+  admission_number: string
+  first_name: string
+  last_name: string
+  full_name: string
+  email: string
+  user_id?: string
+  class_cohort_name?: string
+  section_name?: string
+  date_of_birth?: string
+  gender?: 'M' | 'F' | 'O'
+  status: 'admitted' | 'enrolled' | 'suspended' | 'graduated' | 'withdrawn'
+  guardian_links?: StudentGuardianLink[]
+  created_at?: string
+}
+
+export interface StudentAdmissionPayload {
+  first_name: string
+  last_name: string
+  email: string
+  date_of_birth: string
+  gender: 'M' | 'F' | 'O'
+  admission_date: string
+  admission_number: string
+  class_name: string
+  section_name: string
+  guardian: {
+    first_name: string
+    last_name: string
+    phone_number: string
+    relationship: string
+  }
+}
+
+export interface StaffMember {
+  id: string
+  employee_id: string
+  user: string | EduUser
+  department?: string
+  designation: string
+  qualification?: string
+  joined_date?: string
+  employment_type: 'full_time' | 'part_time' | 'contract'
+  status?: string
+}
+
+export interface AcademicYear {
+  id: string
+  name: string
+  start_date: string
+  end_date: string
+  is_current: boolean
+}
+
+export interface AcademicTerm {
+  id: string
+  name: string
+  academic_year: string
+  start_date: string
+  end_date: string
+}
+
+export interface AcademicDepartment {
+  id: string
+  name: string
+  code: string
+  head_of_department?: string
+}
+
+export interface AttendanceEntry {
+  student_id: string
+  status: 'present' | 'absent' | 'late' | 'excused'
+  remarks?: string
+}
+
+export interface BulkAttendancePayload {
+  section_id: string
+  date: string
+  entries: AttendanceEntry[]
+}
+
+export interface Exam {
+  id: string
+  name: string
+  academic_term: string
+  start_date: string
+  end_date: string
+  is_published: boolean
+}
+
+export interface ExamMark {
+  id: string
+  exam: string
+  student: string
+  subject: string
+  marks_obtained: string
+  max_marks: string
+}
+
+export interface EduInvoice {
+  id: string
+  student: string | Student
+  invoice_number: string
+  amount: string
+  due_date: string
+  status: 'issued' | 'partially_paid' | 'paid' | 'overdue'
+  created_at: string
+}
+
+export interface RecordPaymentPayload {
+  invoice_id: string
+  amount: string
+  payment_method: 'card' | 'cash' | 'bank_transfer' | 'cheque'
+  transaction_reference: string
+}
+
+export interface PaymentReceipt {
+  id: string
+  receipt_number: string
+  amount: string
+  payment_method: string
+  status: string
+  payment_date: string
+}
+
+export interface AnnouncementItem {
+  id: string
+  title: string
+  content: string
+  target_audience: 'all' | 'students' | 'faculty' | 'staff' | string
+  is_published: boolean
+  created_at: string
+}
+
+export interface AppNotificationItem {
+  id: string
+  title: string
+  message: string
+  is_read: boolean
+  created_at: string
+  action_url?: string
+}
+
+export interface AuditLogItem {
+  id: string
+  actor_email: string
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | string
+  resource_type: string
+  resource_id: string
+  description: string
+  ip_address?: string
+  timestamp: string
+}
+
+

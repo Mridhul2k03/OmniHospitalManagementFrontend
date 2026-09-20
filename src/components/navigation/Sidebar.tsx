@@ -25,6 +25,7 @@ import {
   Boxes,
   UserCheck,
   Settings,
+  GraduationCap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -48,6 +49,7 @@ const NAVIGATION_SCHEMA: NavSection[] = [
       { label: 'Room Availability Board', path: '/app/rooms', icon: LayoutGrid },
       { label: 'Reservations', path: '/app/reservations', icon: CalendarDays },
       { label: 'Digital Check-in', path: '/app/checkin', icon: UserCheck, badge: 'Live' },
+      { label: 'Students & Admissions', path: '/app/students', icon: GraduationCap, badge: 'API' },
     ],
   },
   {
