@@ -6,51 +6,20 @@ import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 import { TransportTrip, TripStatus } from '@/types'
+import { transportApi } from '@/api/endpoints/transport.api'
 import { MapPin, Plus, Hotel, ChevronRight } from 'lucide-react'
-
-const MOCK_TRIPS: TransportTrip[] = [
-  {
-    id: 'tr-1',
-    bookingCode: 'TRIP-901',
-    propertyId: 'prop-001',
-    passengerName: 'Lord Sterling Crawford',
-    passengerPhone: '+44 20 7946 0912',
-    roomNumber: '501',
-    tripType: 'airport_transfer',
-    pickupLocation: 'JFK International Airport (Terminal 4)',
-    dropoffLocation: 'Grand Horizon Palace Hotel',
-    scheduledTime: '2026-09-17 19:30',
-    vehicleType: 'Luxury SUV',
-    driverName: 'Liam O\'Connor',
-    driverPhone: '+1 212 555 0199',
-    vehiclePlate: 'NY-VIP-88',
-    fare: 220,
-    status: 'en_route',
-  },
-  {
-    id: 'tr-2',
-    bookingCode: 'TRIP-902',
-    propertyId: 'prop-001',
-    passengerName: 'Elena Rostova',
-    passengerPhone: '+41 22 555 0192',
-    roomNumber: '304',
-    tripType: 'hourly_chauffeur',
-    pickupLocation: 'Grand Horizon Palace Hotel',
-    dropoffLocation: 'Wall Street Financial District',
-    scheduledTime: '2026-09-17 21:00',
-    vehicleType: 'Sedan',
-    driverName: 'Carlos Mendez',
-    driverPhone: '+1 212 555 0144',
-    vehiclePlate: 'NY-EXE-42',
-    fare: 160,
-    status: 'assigned',
-  },
-]
 
 export const TransportHub: React.FC = () => {
   const { success } = useToast()
-  const [trips, setTrips] = useState<TransportTrip[]>(MOCK_TRIPS)
+  const [trips, setTrips] = useState<TransportTrip[]>([])
   const [isBookOpen, setIsBookOpen] = useState(false)
+
+  // Fetch live trips from backend
+  React.useEffect(() => {
+    transportApi.getTrips().then(setTrips).catch((err) => {
+      console.warn('Backend transport trips unreachable:', err)
+    })
+  }, [])
 
   // Booking fields
   const [pName, setPName] = useState('')

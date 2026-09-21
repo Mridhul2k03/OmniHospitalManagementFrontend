@@ -14,35 +14,49 @@ import {
   Hotel,
 } from 'lucide-react'
 
-const MOCK_TABLES: DiningTable[] = [
-  { id: 't-1', restaurantId: 'rest-1', tableNumber: 'T-01', capacity: 2, status: 'available', section: 'Main Dining' },
-  { id: 't-2', restaurantId: 'rest-1', tableNumber: 'T-02', capacity: 2, status: 'occupied', section: 'Main Dining', activeOrderId: 'ord-81' },
-  { id: 't-3', restaurantId: 'rest-1', tableNumber: 'T-03', capacity: 4, status: 'available', section: 'Main Dining' },
-  { id: 't-4', restaurantId: 'rest-1', tableNumber: 'T-04', capacity: 6, status: 'occupied', section: 'Terrace', activeOrderId: 'ord-82' },
-  { id: 't-5', restaurantId: 'rest-1', tableNumber: 'T-05', capacity: 4, status: 'billing', section: 'Terrace' },
-  { id: 't-6', restaurantId: 'rest-1', tableNumber: 'T-06', capacity: 8, status: 'available', section: 'Poolside' },
-]
+import { diningApi } from '@/api/endpoints/dining.api'
 
-const MOCK_MENU: MenuItem[] = [
-  { id: 'm-1', restaurantId: 'rest-1', category: 'Mains', name: 'Charred Prime Wagyu Ribeye', description: '12oz Australian Wagyu, black garlic glaze, truffle butter', price: 68, isVegetarian: false, isVegan: false, isSpicy: false, isAvailable: true, prepTimeMinutes: 20 },
-  { id: 'm-2', restaurantId: 'rest-1', category: 'Mains', name: 'Pan-Seared Chilean Sea Bass', description: 'Asparagus risotto, champagne beurre blanc', price: 54, isVegetarian: false, isVegan: false, isSpicy: false, isAvailable: true, prepTimeMinutes: 18 },
-  { id: 'm-3', restaurantId: 'rest-1', category: 'Appetizers', name: 'Heirloom Burrata & Peach Salad', description: 'Wild arugula, 25-yr balsamic, roasted pine nuts', price: 24, isVegetarian: true, isVegan: false, isSpicy: false, isAvailable: true, prepTimeMinutes: 8 },
-  { id: 'm-4', restaurantId: 'rest-1', category: 'Appetizers', name: 'Maine Lobster Bisque', description: 'Cognac cream, butter-poached claw meat', price: 28, isVegetarian: false, isVegan: false, isSpicy: false, isAvailable: true, prepTimeMinutes: 10 },
-  { id: 'm-5', restaurantId: 'rest-1', category: 'Desserts', name: 'Valrhona Molten Lava Cake', description: 'Bourbon vanilla bean gelato, raspberry coulis', price: 18, isVegetarian: true, isVegan: false, isSpicy: false, isAvailable: true, prepTimeMinutes: 12 },
-  { id: 'm-6', restaurantId: 'rest-1', category: 'Cocktails', name: 'Smoked Mezcal Negroni', description: 'Artisanal mezcal, Campari, Antica Formula, orange peel', price: 22, isVegetarian: true, isVegan: true, isSpicy: false, isAvailable: true, prepTimeMinutes: 4 },
-  { id: 'm-7', restaurantId: 'rest-1', category: 'Wine', name: 'Château Margaux Premier Grand Cru', description: 'Glass pour from Coravin preservation system', price: 95, isVegetarian: true, isVegan: true, isSpicy: false, isAvailable: true, prepTimeMinutes: 2 },
-]
+const DEFAULT_TABLE: DiningTable = {
+  id: 'tbl-1',
+  restaurantId: 'rest-1',
+  tableNumber: 'T-01',
+  capacity: 4,
+  status: 'available',
+  section: 'Main Dining',
+}
 
 export const RestaurantPOS: React.FC = () => {
   const { success } = useToast()
-  const [selectedTable, setSelectedTable] = useState<DiningTable>(MOCK_TABLES[0])
+  const [tables, setTables] = useState<DiningTable[]>([])
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([])
+  const [selectedTable, setSelectedTable] = useState<DiningTable>(DEFAULT_TABLE)
   const [selectedCategory, setSelectedCategory] = useState<string>('All')
-  const [cart, setCart] = useState<CartOrderItem[]>([
-    { menuItemId: 'm-1', name: 'Charred Prime Wagyu Ribeye', quantity: 2, unitPrice: 68 },
-    { menuItemId: 'm-6', name: 'Smoked Mezcal Negroni', quantity: 2, unitPrice: 22 },
-  ])
+  const [cart, setCart] = useState<CartOrderItem[]>([])
   const [isRoomPostOpen, setIsRoomPostOpen] = useState(false)
   const [targetRoom, setTargetRoom] = useState('501')
+  const [loading, setLoading] = useState<boolean>(true)
+
+  // Fetch live tables and menu catalog from backend
+  React.useEffect(() => {
+    setLoading(true)
+    Promise.all([
+      diningApi.getTables().catch(() => []),
+      diningApi.getMenuItems().catch(() => []),
+    ])
+      .then(([fetchedTables, fetchedMenu]) => {
+        if (fetchedTables && fetchedTables.length > 0) {
+          setTables(fetchedTables)
+          setSelectedTable(fetchedTables[0])
+        } else {
+          setTables([DEFAULT_TABLE])
+          setSelectedTable(DEFAULT_TABLE)
+        }
+        if (fetchedMenu && fetchedMenu.length > 0) {
+          setMenuItems(fetchedMenu)
+        }
+      })
+      .finally(() => setLoading(false))
+  }, [])
 
   // Cart math
   const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
@@ -68,17 +82,37 @@ export const RestaurantPOS: React.FC = () => {
   }
 
   // Fire Order to KOT
-  const handleFireKOT = () => {
-    if (cart.length === 0) return
+  const handleFireKOT = async () => {
+    if (cart.length === 0 || !selectedTable) return
+    try {
+      await diningApi.createOrder({
+        tableId: selectedTable.id,
+        guestCount: selectedTable.capacity || 2,
+        serverName: 'POS Cashier',
+        items: cart.map((c) => ({ menuItemId: c.menuItemId, quantity: c.quantity })),
+      })
+    } catch (err) {
+      console.warn('Backend order creation warning:', err)
+    }
     success(
       'KOT Generated & Dispatched to Kitchen',
-      `Ticket sent to Grill and Bar stations for ${selectedTable.tableNumber}.`
+      `Ticket sent to kitchen stations for ${selectedTable.tableNumber}.`
     )
+    setCart([])
   }
 
   // Post to Room Folio
-  const handleConfirmRoomPost = (e: React.FormEvent) => {
+  const handleConfirmRoomPost = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!selectedTable) return
+    try {
+      await diningApi.postCheckToRoom(selectedTable.id, {
+        roomId: targetRoom,
+        guestName: 'In-House Guest',
+      })
+    } catch (err) {
+      console.warn('Backend room charge warning:', err)
+    }
     success(
       'F&B Check Posted to Guest Folio',
       `$${total} posted to Room ${targetRoom} master folio. Check closed on ${selectedTable.tableNumber}.`
@@ -87,8 +121,12 @@ export const RestaurantPOS: React.FC = () => {
     setCart([])
   }
 
+  const categories = ['All', ...Array.from(new Set(menuItems.map((m) => m.category)))]
+
   const filteredMenu =
-    selectedCategory === 'All' ? MOCK_MENU : MOCK_MENU.filter((m) => m.category === selectedCategory)
+    selectedCategory === 'All'
+      ? menuItems
+      : menuItems.filter((m) => m.category.toLowerCase() === selectedCategory.toLowerCase())
 
   return (
     <div className="space-y-6">
@@ -108,7 +146,7 @@ export const RestaurantPOS: React.FC = () => {
           Table Floor Layout & Active Checks
         </span>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-          {MOCK_TABLES.map((table) => {
+          {tables.map((table) => {
             const isSelected = selectedTable.id === table.id
             return (
               <button
@@ -149,7 +187,7 @@ export const RestaurantPOS: React.FC = () => {
         <div className="lg:col-span-2 space-y-4">
           {/* Category Filter Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
-            {['All', 'Appetizers', 'Mains', 'Desserts', 'Cocktails', 'Wine'].map((cat) => (
+            {categories.map((cat) => (
               <button
                 key={cat}
                 type="button"

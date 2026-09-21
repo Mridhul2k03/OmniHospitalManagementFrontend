@@ -5,6 +5,8 @@ import { TenantProvider } from '@/context/TenantContext'
 import { ToastProvider } from '@/components/ui/toast'
 import { ErrorBoundary } from '@/components/feedback/ErrorBoundary'
 
+import { SubscriptionProvider } from '@/context/SubscriptionContext'
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -21,7 +23,9 @@ export const AppProviders: React.FC<{ children: React.ReactNode }> = ({ children
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <TenantProvider>
-            <ToastProvider>{children}</ToastProvider>
+            <ToastProvider>
+              <SubscriptionProvider>{children}</SubscriptionProvider>
+            </ToastProvider>
           </TenantProvider>
         </AuthProvider>
       </QueryClientProvider>

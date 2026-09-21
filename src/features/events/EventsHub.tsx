@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
@@ -6,55 +6,36 @@ import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 import { BanquetEvent, BanquetVenue } from '@/types'
+import { eventsApi } from '@/api/endpoints'
 import { Calendar, Users, Building, FileText } from 'lucide-react'
-
-const MOCK_VENUES: BanquetVenue[] = [
-  { id: 'v-1', propertyId: 'prop-001', name: 'The Grand Ballroom', capacityCocktail: 450, capacityBanquet: 300, capacityTheatre: 500, hourlyRate: 1200, amenities: ['Stage Lighting', 'Surround Sound', 'Bridal Suite'] },
-  { id: 'v-2', propertyId: 'prop-001', name: 'Azure Pavilion & Lawn', capacityCocktail: 250, capacityBanquet: 180, capacityTheatre: 220, hourlyRate: 850, amenities: ['Ocean View', 'Outdoor Lawn', 'Fire Pit'] },
-  { id: 'v-3', propertyId: 'prop-001', name: 'Executive Boardroom Alpha', capacityCocktail: 40, capacityBanquet: 24, capacityTheatre: 30, hourlyRate: 350, amenities: ['Video Conference 4K', 'Smart Screen', 'Executive Catering'] },
-]
-
-const MOCK_EVENTS: BanquetEvent[] = [
-  {
-    id: 'ev-1',
-    propertyId: 'prop-001',
-    title: 'Global Fintech Leaders Summit 2026',
-    clientName: 'Apex Capital Partners',
-    clientContact: 'Sarah Jenkins (+1 415 555 0199)',
-    venueId: 'v-1',
-    venueName: 'The Grand Ballroom',
-    startDate: '2026-09-24 08:00',
-    endDate: '2026-09-26 18:00',
-    attendeeCount: 280,
-    eventType: 'Corporate Summit',
-    status: 'confirmed',
-    totalRevenue: 68000,
-    roomBlockId: 'rb-901 (45 Deluxe Suites Blocked)',
-  },
-  {
-    id: 'ev-2',
-    propertyId: 'prop-001',
-    title: 'Vance & Montgomery Royal Wedding',
-    clientName: 'Eleanor Vance',
-    clientContact: 'vance.family@invest.com',
-    venueId: 'v-2',
-    venueName: 'Azure Pavilion & Lawn',
-    startDate: '2026-10-02 15:00',
-    endDate: '2026-10-03 01:00',
-    attendeeCount: 160,
-    eventType: 'Wedding',
-    status: 'confirmed',
-    totalRevenue: 42500,
-    roomBlockId: 'rb-902 (20 Ocean Suites Blocked)',
-  },
-]
 
 export const EventsHub: React.FC = () => {
   const { success } = useToast()
-  const [events] = useState<BanquetEvent[]>(MOCK_EVENTS)
-  const [venues] = useState<BanquetVenue[]>(MOCK_VENUES)
+  const [events, setEvents] = useState<BanquetEvent[]>([])
+  const [venues, setVenues] = useState<BanquetVenue[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'events' | 'venues'>('events')
   const [selectedEvent, setSelectedEvent] = useState<BanquetEvent | null>(null)
+
+  useEffect(() => {
+    let mounted = true
+    setIsLoading(true)
+    Promise.all([eventsApi.getEvents(), eventsApi.getVenues()])
+      .then(([evData, vnData]) => {
+        if (!mounted) return
+        setEvents(evData)
+        setVenues(vnData)
+      })
+      .catch((err) => {
+        console.warn('Failed to load events data:', err)
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -106,48 +87,61 @@ export const EventsHub: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {events.map((ev) => (
-                  <TableRow key={ev.id}>
-                    <TableCell>
-                      <div className="font-bold text-xs text-foreground">{ev.title}</div>
-                      <div className="text-[10px] text-muted-foreground">{ev.clientName}</div>
-                    </TableCell>
-                    <TableCell className="text-xs font-medium">{ev.venueName}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground font-mono">{ev.startDate.slice(0, 10)}</TableCell>
-                    <TableCell className="text-xs font-mono">
-                      <span className="flex items-center gap-1">
-                        <Users className="h-3 w-3 text-muted-foreground" />
-                        {ev.attendeeCount}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-xs font-mono text-primary font-medium">
-                      {ev.roomBlockId || 'None'}
-                    </TableCell>
-                    <TableCell className="font-bold text-xs font-mono text-foreground">
-                      ${ev.totalRevenue.toLocaleString()}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="success">Confirmed</Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => setSelectedEvent(ev)}
-                      >
-                        <FileText className="h-3.5 w-3.5 mr-1" />
-                        Master Folio
-                      </Button>
+                {events.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground text-xs">
+                      {isLoading ? 'Loading confirmed banquets & events...' : 'No confirmed banquets or group events scheduled.'}
                     </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  events.map((ev) => (
+                    <TableRow key={ev.id}>
+                      <TableCell>
+                        <div className="font-bold text-xs text-foreground">{ev.title}</div>
+                        <div className="text-[10px] text-muted-foreground">{ev.clientName}</div>
+                      </TableCell>
+                      <TableCell className="text-xs font-medium">{ev.venueName}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground font-mono">{ev.startDate.slice(0, 10)}</TableCell>
+                      <TableCell className="text-xs font-mono">
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3 text-muted-foreground" />
+                          {ev.attendeeCount}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-xs font-mono text-primary font-medium">
+                        {ev.roomBlockId || 'None'}
+                      </TableCell>
+                      <TableCell className="font-bold text-xs font-mono text-foreground">
+                        ${ev.totalRevenue.toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="success">Confirmed</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => setSelectedEvent(ev)}
+                        >
+                          <FileText className="h-3.5 w-3.5 mr-1" />
+                          Master Folio
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {venues.length === 0 && !isLoading && (
+            <div className="col-span-full py-8 text-center text-xs text-muted-foreground">
+              No banquet venues or event halls configured.
+            </div>
+          )}
           {venues.map((v) => (
             <Card key={v.id}>
               <CardHeader className="pb-2">

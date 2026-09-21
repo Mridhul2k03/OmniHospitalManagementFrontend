@@ -4,6 +4,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
+import { apiClient } from '@/api/client/axios'
 import { Clock } from 'lucide-react'
 
 interface StaffEmployee {
@@ -16,18 +17,19 @@ interface StaffEmployee {
   status: 'on_duty' | 'break' | 'absent' | 'off_duty'
 }
 
-const MOCK_STAFF: StaffEmployee[] = [
-  { id: 'emp-1', name: 'Sophia Chen', department: 'Front Office', role: 'Front Desk Lead', shift: 'Morning (07:00 - 15:30)', clockInTime: '06:54 AM', status: 'on_duty' },
-  { id: 'emp-2', name: 'Maria Santos', department: 'Housekeeping', role: 'Floor Supervisor', shift: 'Morning (07:00 - 15:30)', clockInTime: '06:58 AM', status: 'on_duty' },
-  { id: 'emp-3', name: 'Antoine Dubois', department: 'Culinary & F&B', role: 'Executive Chef', shift: 'Evening (15:00 - 23:30)', clockInTime: '14:45 PM', status: 'on_duty' },
-  { id: 'emp-4', name: 'Vikram Patel', department: 'Engineering', role: 'Chief Engineer', shift: 'Morning (07:00 - 15:30)', clockInTime: '07:10 AM', status: 'on_duty' },
-  { id: 'emp-5', name: 'Babatunde Adeleke', department: 'Security', role: 'Security Supervisor', shift: 'Evening (15:00 - 23:30)', clockInTime: '15:00 PM', status: 'on_duty' },
-]
-
 export const HRHub: React.FC = () => {
   const { success } = useToast()
-  const [staff] = useState<StaffEmployee[]>(MOCK_STAFF)
+  const [staff, setStaff] = useState<StaffEmployee[]>([])
   const [hasClockedIn, setHasClockedIn] = useState(false)
+
+  // Fetch live staff from backend
+  React.useEffect(() => {
+    apiClient.get('/hr/staff/').then((res) => {
+      if (Array.isArray(res.data)) setStaff(res.data)
+    }).catch((err) => {
+      console.warn('Backend HR staff unreachable:', err)
+    })
+  }, [])
 
   const handlePunchClock = () => {
     setHasClockedIn(!hasClockedIn)

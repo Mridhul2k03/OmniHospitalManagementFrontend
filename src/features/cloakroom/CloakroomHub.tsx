@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
@@ -7,39 +7,13 @@ import { Modal } from '@/components/ui/modal'
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { useToast } from '@/components/ui/toast'
 import { CloakroomTicket } from '@/types'
+import { cloakroomApi } from '@/api/endpoints'
 import { QrCode, Plus, CheckCircle2 } from 'lucide-react'
 
-const MOCK_CLOAKROOM_TICKETS: CloakroomTicket[] = [
-  {
-    id: 'clk-1',
-    ticketNumber: 'CLOAK-8021',
-    propertyId: 'prop-001',
-    ownerName: 'Lord Sterling Crawford',
-    roomNumber: '501',
-    contactPhone: '+44 20 7946 0912',
-    itemCount: 4,
-    itemDescriptions: '2x Rimowa Aluminum Trunks, 1x Louis Vuitton Garment Bag, 1x Golf Set',
-    storageRackLocation: 'Rack B-04 (VIP High Security Vault)',
-    issuedAt: '2026-09-17 14:15',
-    status: 'stored',
-  },
-  {
-    id: 'clk-2',
-    ticketNumber: 'CLOAK-8019',
-    propertyId: 'prop-001',
-    ownerName: 'David K. (Conference Speaker)',
-    contactPhone: '+1 415 555 0188',
-    itemCount: 2,
-    itemDescriptions: '1x Tumi Roller Suitcase, 1x Laptop Briefcase',
-    storageRackLocation: 'Rack A-12 (Bell Desk Hold)',
-    issuedAt: '2026-09-17 11:30',
-    status: 'stored',
-  },
-]
-
 export const CloakroomHub: React.FC = () => {
-  const { success } = useToast()
-  const [tickets, setTickets] = useState<CloakroomTicket[]>(MOCK_CLOAKROOM_TICKETS)
+  const { success, error } = useToast()
+  const [tickets, setTickets] = useState<CloakroomTicket[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [isIssueOpen, setIsIssueOpen] = useState(false)
   const [ticketToRelease, setTicketToRelease] = useState<CloakroomTicket | null>(null)
 
@@ -51,11 +25,28 @@ export const CloakroomHub: React.FC = () => {
   const [desc, setDesc] = useState('')
   const [rack, setRack] = useState('Rack A-05')
 
-  const handleIssueTicket = (e: React.FormEvent) => {
+  useEffect(() => {
+    let mounted = true
+    setIsLoading(true)
+    cloakroomApi
+      .getTickets()
+      .then((data) => {
+        if (mounted) setTickets(data)
+      })
+      .catch((err) => {
+        console.warn('Failed to load cloakroom tickets:', err)
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const handleIssueTicket = async (e: React.FormEvent) => {
     e.preventDefault()
-    const newTkt: CloakroomTicket = {
-      id: `clk-${Date.now()}`,
-      ticketNumber: `CLOAK-${Math.floor(8000 + Math.random() * 1000)}`,
+    const newTktData: Partial<CloakroomTicket> = {
       propertyId: 'prop-001',
       ownerName: owner,
       roomNumber: room || undefined,
@@ -63,32 +54,31 @@ export const CloakroomHub: React.FC = () => {
       itemCount: parseInt(count) || 1,
       itemDescriptions: desc,
       storageRackLocation: rack,
-      issuedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
       status: 'stored',
     }
-    setTickets([newTkt, ...tickets])
-    success('Cloakroom Baggage Tag Generated', `Ticket ${newTkt.ticketNumber} registered to ${owner}. Assigned: ${rack}`)
-    setIsIssueOpen(false)
-    setOwner('')
-    setDesc('')
+
+    try {
+      const created = await cloakroomApi.issueTicket(newTktData)
+      setTickets((prev) => [created, ...prev])
+      success('Cloakroom Baggage Tag Generated', `Ticket ${created.ticketNumber} registered to ${owner}. Assigned: ${rack}`)
+      setIsIssueOpen(false)
+      setOwner('')
+      setDesc('')
+    } catch (err) {
+      error('Tag Generation Failed', 'Unable to record cloakroom baggage ticket.')
+    }
   }
 
-  const handleConfirmRelease = () => {
+  const handleConfirmRelease = async () => {
     if (!ticketToRelease) return
-    setTickets((prev) =>
-      prev.map((t) =>
-        t.id === ticketToRelease.id
-          ? {
-              ...t,
-              status: 'released',
-              releasedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-              releasedTo: ticketToRelease.ownerName,
-            }
-          : t
-      )
-    )
-    success('Luggage Released & Verified', `All ${ticketToRelease.itemCount} items returned to ${ticketToRelease.ownerName}. Ticket archived.`)
-    setTicketToRelease(null)
+    try {
+      const updated = await cloakroomApi.releaseTicket(ticketToRelease.id)
+      setTickets((prev) => prev.map((t) => (t.id === ticketToRelease.id ? updated : t)))
+      success('Luggage Released & Verified', `All ${ticketToRelease.itemCount} items returned to ${ticketToRelease.ownerName}. Ticket archived.`)
+      setTicketToRelease(null)
+    } catch (err) {
+      error('Release Failed', 'Unable to release luggage ticket.')
+    }
   }
 
   return (
@@ -126,43 +116,51 @@ export const CloakroomHub: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tickets.map((t) => (
-                <TableRow key={t.id} className={t.status === 'released' ? 'opacity-40 bg-muted/20' : ''}>
-                  <TableCell className="font-mono font-bold text-xs text-primary flex items-center gap-1.5">
-                    <QrCode className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span>{t.ticketNumber}</span>
-                  </TableCell>
-                  <TableCell className="font-bold text-xs text-foreground">{t.ownerName}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {t.roomNumber ? `Room ${t.roomNumber}` : 'Day Visitor'}
-                  </TableCell>
-                  <TableCell className="font-mono font-bold text-xs">{t.itemCount} Bags</TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
-                    {t.itemDescriptions}
-                  </TableCell>
-                  <TableCell className="font-mono font-semibold text-xs text-amber-600 dark:text-amber-400">
-                    {t.storageRackLocation}
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground font-mono">{t.issuedAt}</TableCell>
-                  <TableCell>
-                    <Badge variant={t.status === 'stored' ? 'warning' : 'neutral'}>
-                      {t.status.toUpperCase()}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {t.status === 'stored' && (
-                      <Button
-                        size="sm"
-                        className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
-                        onClick={() => setTicketToRelease(t)}
-                      >
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        Release
-                      </Button>
-                    )}
+              {tickets.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground text-xs">
+                    {isLoading ? 'Loading cloakroom custody tickets...' : 'No luggage currently stored in cloakroom custody.'}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                tickets.map((t) => (
+                  <TableRow key={t.id} className={t.status === 'released' ? 'opacity-40 bg-muted/20' : ''}>
+                    <TableCell className="font-mono font-bold text-xs text-primary flex items-center gap-1.5">
+                      <QrCode className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span>{t.ticketNumber}</span>
+                    </TableCell>
+                    <TableCell className="font-bold text-xs text-foreground">{t.ownerName}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {t.roomNumber ? `Room ${t.roomNumber}` : 'Day Visitor'}
+                    </TableCell>
+                    <TableCell className="font-mono font-bold text-xs">{t.itemCount} Bags</TableCell>
+                    <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
+                      {t.itemDescriptions}
+                    </TableCell>
+                    <TableCell className="font-mono font-semibold text-xs text-amber-600 dark:text-amber-400">
+                      {t.storageRackLocation}
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground font-mono">{t.issuedAt}</TableCell>
+                    <TableCell>
+                      <Badge variant={t.status === 'stored' ? 'warning' : 'neutral'}>
+                        {t.status.toUpperCase()}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {t.status === 'stored' && (
+                        <Button
+                          size="sm"
+                          className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+                          onClick={() => setTicketToRelease(t)}
+                        >
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Release
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

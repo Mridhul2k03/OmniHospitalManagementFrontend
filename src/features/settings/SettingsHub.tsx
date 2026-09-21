@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useTenant } from '@/context/useTenant'
 import { useToast } from '@/components/ui/toast'
-import { Building2, DollarSign, Save } from 'lucide-react'
+import { Building2, DollarSign, Save, Crown, Check } from 'lucide-react'
+import { useSubscription, SUBSCRIPTION_PLANS } from '@/context/SubscriptionContext'
 
 export const SettingsHub: React.FC = () => {
   const { activeProperty, activeOrg } = useTenant()
@@ -83,6 +84,9 @@ export const SettingsHub: React.FC = () => {
           </CardContent>
         </Card>
 
+        {/* Subscription Plan & License Tier */}
+        <SubscriptionSettingsCard />
+
         <div className="flex justify-end">
           <Button type="submit" className="gap-2">
             <Save className="h-4 w-4" />
@@ -91,5 +95,80 @@ export const SettingsHub: React.FC = () => {
         </div>
       </form>
     </div>
+  )
+}
+
+const SubscriptionSettingsCard: React.FC = () => {
+  const { currentPlan, upgradePlan } = useSubscription()
+  const tiers: ('starter' | 'professional' | 'enterprise')[] = ['starter', 'professional', 'enterprise']
+
+  return (
+    <Card>
+      <CardHeader className="pb-3 border-b border-border">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Crown className="h-4 w-4 text-amber-500" />
+            <span>Organization Subscription & Plan Tier</span>
+          </CardTitle>
+          <span className="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+            Current: {currentPlan}
+          </span>
+        </div>
+      </CardHeader>
+      <CardContent className="p-6 space-y-4 text-xs">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {tiers.map((t) => {
+            const plan = SUBSCRIPTION_PLANS[t]
+            const isCurrent = currentPlan === t
+            return (
+              <div
+                key={t}
+                className={`relative flex flex-col justify-between rounded-xl border p-4 transition-all ${
+                  isCurrent
+                    ? 'border-primary bg-primary/5 shadow-xs'
+                    : 'border-border bg-card/60 hover:border-border/80'
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-sm text-foreground">{plan.name}</h4>
+                    {isCurrent && (
+                      <span className="rounded bg-primary/20 px-1.5 py-0.5 text-[9px] font-bold text-primary uppercase">
+                        Active
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1 mb-2">{plan.tagline}</p>
+                  <p className="text-xl font-extrabold text-foreground mb-3">
+                    ${plan.monthlyPrice} <span className="text-xs font-normal text-muted-foreground">/mo</span>
+                  </p>
+                  <ul className="space-y-1.5 border-t border-border/50 pt-2 text-[11px] text-muted-foreground">
+                    {plan.features.slice(0, 4).map((f, i) => (
+                      <li key={i} className="flex items-center gap-1.5">
+                        <Check className="h-3 w-3 text-emerald-500 shrink-0" />
+                        <span className="truncate">{f}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="mt-4 pt-2">
+                  <Button
+                    type="button"
+                    variant={isCurrent ? 'outline' : 'default'}
+                    disabled={isCurrent}
+                    size="sm"
+                    className="w-full text-xs"
+                    onClick={() => upgradePlan(t)}
+                  >
+                    {isCurrent ? 'Current Tier' : `Switch to ${plan.name}`}
+                  </Button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
   )
 }

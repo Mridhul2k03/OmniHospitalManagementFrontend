@@ -50,6 +50,22 @@ export interface AuthTokens {
   refresh: string
 }
 
+// --- SUBSCRIPTION & TIERS ---
+export type SubscriptionTier = 'starter' | 'professional' | 'enterprise'
+
+export interface SubscriptionPlanDetails {
+  id: SubscriptionTier
+  name: string
+  tagline: string
+  monthlyPrice: number
+  annualPrice: number
+  maxProperties: number
+  maxRooms: number
+  allowedModules: string[]
+  isPopular?: boolean
+  features: string[]
+}
+
 // --- TENANT & PROPERTY HIERARCHY ---
 export interface Organization {
   id: string
@@ -59,6 +75,9 @@ export interface Organization {
   currency: string
   taxIdNumber?: string
   createdAt: string
+  subscriptionTier?: SubscriptionTier
+  maxProperties?: number
+  maxRooms?: number
 }
 
 export interface Property {
@@ -485,6 +504,30 @@ export interface CloakroomTicket {
   status: 'stored' | 'partial_released' | 'released'
 }
 
+// --- INVENTORY & PROCUREMENT ---
+export interface InventoryStockItem {
+  id: string
+  name: string
+  category: 'F&B Provisions' | 'Guest Amenities' | 'Linens' | 'Engineering Spares' | 'Bar Spirits' | string
+  currentStock: number
+  reorderPoint: number
+  unit: string
+  storeLocation: string
+  status: 'optimal' | 'low_stock' | 'reorder_required'
+}
+
+// --- HR & STAFF ATTENDANCE ---
+export interface StaffEmployee {
+  id: string
+  name: string
+  department: 'Front Office' | 'Housekeeping' | 'Culinary & F&B' | 'Engineering' | 'Security' | string
+  role: string
+  shift: 'Morning (07:00 - 15:30)' | 'Evening (15:00 - 23:30)' | 'Night Audit (23:00 - 07:30)' | string
+  clockInTime?: string
+  status: 'on_duty' | 'break' | 'absent' | 'off_duty'
+}
+
+
 // --- FLEET & TRANSPORT ---
 export type TripStatus =
   | 'requested'
@@ -675,6 +718,7 @@ export interface EduUser {
   last_name: string
   full_name: string
   is_staff?: boolean
+  is_superuser?: boolean
   role?: string
   permissions?: string[]
 }
@@ -849,5 +893,41 @@ export interface AuditLogItem {
   ip_address?: string
   timestamp: string
 }
+
+// --- SUPERADMIN PLATFORM CONTROL TYPES ---
+export interface ClientOrganization {
+  id: string
+  name: string
+  code: string
+  legal_name?: string
+  contact_email: string
+  contact_phone?: string
+  address?: string
+  subscription_tier: SubscriptionTier | 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE'
+  is_active: boolean
+  created_at: string
+  updated_at?: string
+  users_count?: number
+  properties_count?: number
+}
+
+export interface PlatformUser {
+  id: string
+  email: string
+  username: string
+  first_name?: string
+  last_name?: string
+  full_name?: string
+  role: UserRole | string
+  organization?: string | null
+  organization_name?: string | null
+  phone_number?: string
+  is_active: boolean
+  is_staff?: boolean
+  is_superuser?: boolean
+  is_2fa_enabled?: boolean
+  date_joined: string
+}
+
 
 

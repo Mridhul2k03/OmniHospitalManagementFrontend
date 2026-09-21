@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
 import { UserRole } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -14,14 +14,14 @@ export const LoginView: React.FC = () => {
   // From route redirect state if user was pushed here by RequireAuth
   const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/app/frontdesk'
 
-  const [email, setEmail] = useState('eleanor.vance@omni-edu.org')
+  const [email, setEmail] = useState('superadmin@omnihospitality.com')
   const [password, setPassword] = useState('Password123!')
-  const [tenantSlug, setTenantSlug] = useState('oxford-crest')
+  const [tenantSlug, setTenantSlug] = useState('grand-horizon')
   const [showPassword, setShowPassword] = useState(false)
   const [selectedRole, setSelectedRole] = useState<UserRole>('super_admin')
   const [localError, setLocalError] = useState<string | null>(null)
 
-  const handleDemoAccountSelect = (demoEmail: string, demoPass: string, demoRole: UserRole, demoTenant = 'oxford-crest') => {
+  const handleDemoAccountSelect = (demoEmail: string, demoPass: string, demoRole: UserRole, demoTenant = 'grand-horizon') => {
     clearError?.()
     setLocalError(null)
     setEmail(demoEmail)
@@ -98,32 +98,32 @@ export const LoginView: React.FC = () => {
           <button
             type="button"
             onClick={() =>
-              handleDemoAccountSelect('eleanor.vance@omni-edu.org', 'Password123!', 'super_admin')
+              handleDemoAccountSelect('superadmin@omnihospitality.com', 'Password123!', 'super_admin')
             }
-            className="rounded-lg border border-border bg-background/90 p-2 text-left hover:border-primary/50 hover:bg-muted/80 transition-all cursor-pointer"
+            className="rounded-lg border border-border bg-background/90 p-2 text-left hover:border-amber-500/50 hover:bg-muted/80 transition-all cursor-pointer"
           >
-            <p className="text-[11px] font-bold leading-none text-foreground">Admin</p>
-            <p className="text-[9px] text-muted-foreground mt-1 truncate font-mono">eleanor.vance</p>
+            <p className="text-[11px] font-bold leading-none text-foreground">Super Admin</p>
+            <p className="text-[9px] text-muted-foreground mt-1 truncate font-mono">superadmin</p>
           </button>
           <button
             type="button"
             onClick={() =>
-              handleDemoAccountSelect('arthur.pendelton@omni-edu.org', 'Password123!', 'property_manager')
+              handleDemoAccountSelect('manager.palace@omnihospitality.com', 'Password123!', 'property_manager')
             }
             className="rounded-lg border border-border bg-background/90 p-2 text-left hover:border-primary/50 hover:bg-muted/80 transition-all cursor-pointer"
           >
-            <p className="text-[11px] font-bold leading-none text-foreground">Faculty</p>
-            <p className="text-[9px] text-muted-foreground mt-1 truncate font-mono">arthur.p</p>
+            <p className="text-[11px] font-bold leading-none text-foreground">Manager</p>
+            <p className="text-[9px] text-muted-foreground mt-1 truncate font-mono">manager.palace</p>
           </button>
           <button
             type="button"
             onClick={() =>
-              handleDemoAccountSelect('devan.nair@omni-edu.org', 'Student123!', 'guest')
+              handleDemoAccountSelect('frontdesk.palace@omnihospitality.com', 'Password123!', 'front_desk')
             }
             className="rounded-lg border border-border bg-background/90 p-2 text-left hover:border-primary/50 hover:bg-muted/80 transition-all cursor-pointer"
           >
-            <p className="text-[11px] font-bold leading-none text-foreground">Student</p>
-            <p className="text-[9px] text-muted-foreground mt-1 truncate font-mono">devan.nair</p>
+            <p className="text-[11px] font-bold leading-none text-foreground">Front Desk</p>
+            <p className="text-[9px] text-muted-foreground mt-1 truncate font-mono">frontdesk.p</p>
           </button>
         </div>
       </div>
@@ -141,7 +141,7 @@ export const LoginView: React.FC = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="name@omni-edu.org"
+              placeholder="alexander@omnihospitality.com"
               className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
@@ -219,6 +219,18 @@ export const LoginView: React.FC = () => {
           Authenticate & Enter Portal
         </Button>
       </form>
+
+      <div className="text-center pt-3 border-t border-border/60">
+        <p className="text-xs text-muted-foreground">
+          New hospitality client or property?{' '}
+          <Link
+            to="/auth/register"
+            className="font-bold text-amber-500 hover:text-amber-400 hover:underline transition-colors"
+          >
+            Register & Onboard your property
+          </Link>
+        </p>
+      </div>
     </div>
   )
 }

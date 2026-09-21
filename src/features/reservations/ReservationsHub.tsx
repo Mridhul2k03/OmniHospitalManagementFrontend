@@ -5,79 +5,29 @@ import { Button } from '@/components/ui/button'
 import { Badge, ReservationStatusBadge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
 import { Reservation } from '@/types'
+import { reservationsApi } from '@/api/endpoints/reservations.api'
 import { Search, Plus } from 'lucide-react'
-
-const MOCK_RESERVATIONS_LIST: Reservation[] = [
-  {
-    id: 'res-201',
-    code: 'RES-9104',
-    propertyId: 'prop-001',
-    propertyName: 'Grand Horizon Palace & Spa',
-    guest: { id: 'g-21', firstName: 'Julian', lastName: 'Montague', email: 'j.montague@london.co.uk', phone: '+44 20 7111 2222', idType: 'passport', idNumber: 'GB882910', country: 'United Kingdom', vipStatus: 'platinum', totalStays: 12, totalSpend: 38000 },
-    roomTypeId: 'rt-001',
-    roomTypeName: 'Penthouse Royal Suite',
-    roomId: 'rm-501',
-    roomNumber: '501',
-    checkInDate: '2026-09-20',
-    checkOutDate: '2026-09-25',
-    nightsCount: 5,
-    adultsCount: 2,
-    childrenCount: 1,
-    status: 'confirmed',
-    totalAmount: 7250,
-    paidAmount: 7250,
-    balanceAmount: 0,
-    channel: 'direct',
-    createdDate: '2026-09-14',
-  },
-  {
-    id: 'res-202',
-    code: 'RES-9105',
-    propertyId: 'prop-001',
-    propertyName: 'Grand Horizon Palace & Spa',
-    guest: { id: 'g-22', firstName: 'Helena', lastName: 'Bergman', email: 'h.bergman@nordic.se', phone: '+46 8 555 0199', idType: 'passport', idNumber: 'SE991042', country: 'Sweden', vipStatus: 'silver', totalStays: 3, totalSpend: 6200 },
-    roomTypeId: 'rt-002',
-    roomTypeName: 'Executive Oceanfront King',
-    roomNumber: '305',
-    checkInDate: '2026-09-21',
-    checkOutDate: '2026-09-24',
-    nightsCount: 3,
-    adultsCount: 1,
-    childrenCount: 0,
-    status: 'confirmed',
-    totalAmount: 1380,
-    paidAmount: 1380,
-    balanceAmount: 0,
-    channel: 'ota_booking',
-    createdDate: '2026-09-15',
-  },
-  {
-    id: 'res-203',
-    code: 'RES-9106',
-    propertyId: 'prop-001',
-    propertyName: 'Grand Horizon Palace & Spa',
-    guest: { id: 'g-23', firstName: 'Alexander', lastName: 'Vance', email: 'avance@vancecorp.com', phone: '+1 212 555 0111', idType: 'driver_license', idNumber: 'NY882910', country: 'United States', vipStatus: 'gold', totalStays: 7, totalSpend: 19400 },
-    roomTypeId: 'rt-003',
-    roomTypeName: 'Premier Suite',
-    roomNumber: '302',
-    checkInDate: '2026-09-22',
-    checkOutDate: '2026-09-26',
-    nightsCount: 4,
-    adultsCount: 2,
-    childrenCount: 0,
-    status: 'confirmed',
-    totalAmount: 2080,
-    paidAmount: 1000,
-    balanceAmount: 1080,
-    channel: 'corporate',
-    createdDate: '2026-09-15',
-  },
-]
 
 export const ReservationsHub: React.FC = () => {
   const { success } = useToast()
-  const [reservations] = useState<Reservation[]>(MOCK_RESERVATIONS_LIST)
+  const [reservations, setReservations] = useState<Reservation[]>([])
   const [search, setSearch] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+
+  React.useEffect(() => {
+    setIsLoading(true)
+    reservationsApi
+      .getReservations()
+      .then((data) => {
+        setReservations(data || [])
+      })
+      .catch((err) => {
+        console.warn('Backend reservations endpoint error:', err)
+      })
+      .finally(() => {
+        setIsLoading(false)
+      })
+  }, [])
 
   const filtered = reservations.filter(
     (r) =>

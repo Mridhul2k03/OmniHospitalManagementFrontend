@@ -6,71 +6,24 @@ import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 import { MaintenanceTicket, MaintenanceStatus } from '@/types'
+import { maintenanceApi } from '@/api/endpoints/maintenance.api'
 import { Clock, Plus } from 'lucide-react'
-
-const MOCK_TICKETS: MaintenanceTicket[] = [
-  {
-    id: 'm-1',
-    code: 'MNT-102',
-    propertyId: 'prop-001',
-    category: 'HVAC / AC',
-    location: 'Room 204 (Ocean Executive)',
-    title: 'AC cooling coil freezing & loud rattling fan vibration',
-    description: 'Guest reported room temperature cannot reach below 24C. Requires replacement fan motor bearing.',
-    priority: 'urgent',
-    status: 'in_progress',
-    reportedBy: 'Front Desk S. Chen',
-    assignedTechnician: 'Vikram Patel (Lead HVAC)',
-    createdAt: '2026-09-17 08:30',
-    slaHours: 4,
-    isOverdue: false,
-    estimatedCost: 180,
-  },
-  {
-    id: 'm-2',
-    code: 'MNT-103',
-    propertyId: 'prop-001',
-    category: 'Plumbing',
-    location: 'Main Lobby Restrooms',
-    title: 'Touchless sensor flush valve continuous water flow',
-    description: 'Sensor failure causing constant water drainage in stall #3.',
-    priority: 'high',
-    status: 'assigned',
-    reportedBy: 'Housekeeping Lead Maria',
-    assignedTechnician: 'Dave Miller (Plumbing)',
-    createdAt: '2026-09-17 09:15',
-    slaHours: 6,
-    isOverdue: false,
-    estimatedCost: 75,
-  },
-  {
-    id: 'm-3',
-    code: 'MNT-100',
-    propertyId: 'prop-001',
-    category: 'Electrical',
-    location: 'Room 301 Suite',
-    title: 'Bedside master dimmer touch panel unresponsive',
-    description: 'Controller module replaced with OEM part.',
-    priority: 'medium',
-    status: 'resolved',
-    reportedBy: 'Guest Butler',
-    assignedTechnician: 'Vikram Patel',
-    createdAt: '2026-09-16 16:00',
-    resolvedAt: '2026-09-17 10:00',
-    slaHours: 24,
-    isOverdue: false,
-    estimatedCost: 120,
-  },
-]
 
 export const MaintenanceHub: React.FC = () => {
   const { success } = useToast()
-  const [tickets, setTickets] = useState<MaintenanceTicket[]>(MOCK_TICKETS)
+  const [tickets, setTickets] = useState<MaintenanceTicket[]>([])
   const [isNewTicketOpen, setIsNewTicketOpen] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newLocation, setNewLocation] = useState('')
   const [newCategory, setNewCategory] = useState<'HVAC / AC' | 'Plumbing' | 'Electrical' | 'Carpentry'>('HVAC / AC')
   const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium')
+
+  // Fetch live tickets from backend
+  React.useEffect(() => {
+    maintenanceApi.getTickets().then(setTickets).catch((err) => {
+      console.warn('Backend maintenance tickets unreachable:', err)
+    })
+  }, [])
 
   const handleCreateTicket = (e: React.FormEvent) => {
     e.preventDefault()

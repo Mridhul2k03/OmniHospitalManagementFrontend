@@ -4,22 +4,36 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/auth/useAuth'
 import { useToast } from '@/components/ui/toast'
+import { shareholderApi } from '@/api/endpoints/shareholder.api'
 import {
   FileCheck2,
   TrendingUp,
   Download,
 } from 'lucide-react'
 
-const MOCK_DIVIDENDS = [
-  { id: 'div-1', quarter: 'Q3 FY26', declaredDate: '2026-09-01', paidDate: '2026-09-15', perShare: '$1.45', totalPaid: '$72,500.00', ref: 'DIV-FED-99120', status: 'paid' },
-  { id: 'div-2', quarter: 'Q2 FY26', declaredDate: '2026-06-01', paidDate: '2026-06-15', perShare: '$1.38', totalPaid: '$69,000.00', ref: 'DIV-FED-84102', status: 'paid' },
-  { id: 'div-3', quarter: 'Q1 FY26', declaredDate: '2026-03-01', paidDate: '2026-03-15', perShare: '$1.25', totalPaid: '$62,500.00', ref: 'DIV-FED-71994', status: 'paid' },
-]
-
 export const ShareholderPortal: React.FC = () => {
   const { user } = useAuth()
   const { success } = useToast()
   const [activeTab, setActiveTab] = useState<'overview' | 'dividends' | 'financials'>('overview')
+  const [dividends, setDividends] = useState<Array<{id: string; quarter: string; declaredDate: string; paidDate: string; perShare: string; totalPaid: string; ref: string; status: string}>>([])
+
+  // Fetch live dividends from backend
+  React.useEffect(() => {
+    shareholderApi.getDividends().then((data: any[]) => {
+      setDividends(data.map((d: any) => ({
+        id: d.id || `div-${Math.random()}`,
+        quarter: d.quarter || d.period || 'N/A',
+        declaredDate: d.declared_date || d.declaredDate || '',
+        paidDate: d.paid_date || d.paidDate || '',
+        perShare: d.per_share || d.perShare || '$0.00',
+        totalPaid: d.total_paid || d.totalPaid || '$0.00',
+        ref: d.reference || d.ref || '',
+        status: d.status || 'paid',
+      })))
+    }).catch((err) => {
+      console.warn('Backend dividends unreachable:', err)
+    })
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -62,7 +76,7 @@ export const ShareholderPortal: React.FC = () => {
             activeTab === 'dividends' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white bg-slate-900'
           }`}
         >
-          Dividend Ledger ({MOCK_DIVIDENDS.length})
+          Dividend Ledger ({dividends.length})
         </button>
         <button
           onClick={() => setActiveTab('financials')}
@@ -149,7 +163,7 @@ export const ShareholderPortal: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {MOCK_DIVIDENDS.map((d) => (
+              {dividends.map((d) => (
                 <TableRow key={d.id} className="border-slate-800 hover:bg-slate-800/40">
                   <TableCell className="font-bold text-xs text-white">{d.quarter}</TableCell>
                   <TableCell className="font-mono text-xs">{d.perShare}</TableCell>

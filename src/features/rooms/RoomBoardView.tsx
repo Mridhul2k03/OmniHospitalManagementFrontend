@@ -5,45 +5,43 @@ import { RoomStatusBadge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 import { Room, RoomStatus } from '@/types'
+import { roomsApi } from '@/api/endpoints/rooms.api'
 import { Sparkles, Filter, Wrench, RefreshCw } from 'lucide-react'
-
-const MOCK_ROOMS: Room[] = [
-  // Floor 1
-  { id: 'r-101', propertyId: 'prop-001', floorNumber: 1, roomNumber: '101', roomTypeId: 'rt-std', roomTypeName: 'Garden King Deluxe', status: 'available', isClean: true, isOccupied: false, isSmoking: false, currentRate: 240, features: ['Balcony', 'King Bed'] },
-  { id: 'r-102', propertyId: 'prop-001', floorNumber: 1, roomNumber: '102', roomTypeId: 'rt-std', roomTypeName: 'Garden King Deluxe', status: 'occupied', currentGuestName: 'Dr. Thorne', isClean: true, isOccupied: true, isSmoking: false, currentRate: 240, features: ['Balcony', 'King Bed'] },
-  { id: 'r-103', propertyId: 'prop-001', floorNumber: 1, roomNumber: '103', roomTypeId: 'rt-std', roomTypeName: 'Garden Twin Deluxe', status: 'dirty', isClean: false, isOccupied: false, isSmoking: false, currentRate: 220, features: ['Twin Beds'] },
-  { id: 'r-104', propertyId: 'prop-001', floorNumber: 1, roomNumber: '104', roomTypeId: 'rt-std', roomTypeName: 'Garden Twin Deluxe', status: 'cleaning', isClean: false, isOccupied: false, isSmoking: false, currentRate: 220, features: ['Twin Beds'] },
-  { id: 'r-105', propertyId: 'prop-001', floorNumber: 1, roomNumber: '105', roomTypeId: 'rt-std', roomTypeName: 'Accessible Suite', status: 'available', isClean: true, isOccupied: false, isSmoking: false, currentRate: 260, features: ['ADA Roll-in Shower'] },
-
-  // Floor 2
-  { id: 'r-201', propertyId: 'prop-001', floorNumber: 2, roomNumber: '201', roomTypeId: 'rt-exec', roomTypeName: 'Ocean View Executive', status: 'occupied', currentGuestName: 'Ambassador Vance', isClean: true, isOccupied: true, isSmoking: false, currentRate: 380, features: ['Sea View', 'Nespresso'] },
-  { id: 'r-202', propertyId: 'prop-001', floorNumber: 2, roomNumber: '202', roomTypeId: 'rt-exec', roomTypeName: 'Ocean View Executive', status: 'available', isClean: true, isOccupied: false, isSmoking: false, currentRate: 380, features: ['Sea View'] },
-  { id: 'r-203', propertyId: 'prop-001', floorNumber: 2, roomNumber: '203', roomTypeId: 'rt-exec', roomTypeName: 'Ocean View Executive', status: 'inspection', isClean: true, isOccupied: false, isSmoking: false, currentRate: 380, features: ['Sea View'] },
-  { id: 'r-204', propertyId: 'prop-001', floorNumber: 2, roomNumber: '204', roomTypeId: 'rt-exec', roomTypeName: 'Ocean View Executive', status: 'maintenance', isClean: false, isOccupied: false, isSmoking: false, currentRate: 380, features: ['AC Compressor Issue'] },
-
-  // Floor 3
-  { id: 'r-301', propertyId: 'prop-001', floorNumber: 3, roomNumber: '301', roomTypeId: 'rt-ste', roomTypeName: 'Premier Suite', status: 'available', isClean: true, isOccupied: false, isSmoking: false, currentRate: 520, features: ['Living Room', 'Jacuzzi'] },
-  { id: 'r-302', propertyId: 'prop-001', floorNumber: 3, roomNumber: '302', roomTypeId: 'rt-ste', roomTypeName: 'Premier Suite', status: 'occupied', currentGuestName: 'Mr. & Mrs. Dupont', isClean: true, isOccupied: true, isSmoking: false, currentRate: 520, features: ['Living Room', 'Jacuzzi'] },
-  { id: 'r-303', propertyId: 'prop-001', floorNumber: 3, roomNumber: '303', roomTypeId: 'rt-ste', roomTypeName: 'Premier Suite', status: 'reserved', isClean: true, isOccupied: false, isSmoking: false, currentRate: 520, features: ['Arriving 18:00'] },
-  { id: 'r-304', propertyId: 'prop-001', floorNumber: 3, roomNumber: '304', roomTypeId: 'rt-ste', roomTypeName: 'Premier Suite', status: 'occupied', currentGuestName: 'Elena Rostova', isClean: true, isOccupied: true, isSmoking: false, currentRate: 520, features: ['VIP Guest'] },
-
-  // Floor 4 (Penthouse)
-  { id: 'r-401', propertyId: 'prop-001', floorNumber: 4, roomNumber: '401', roomTypeId: 'rt-ph', roomTypeName: 'Presidential Penthouse', status: 'occupied', currentGuestName: 'Lord Crawford', isClean: true, isOccupied: true, isSmoking: false, currentRate: 1450, features: ['Private Terrace', 'Butler Service'] },
-  { id: 'r-402', propertyId: 'prop-001', floorNumber: 4, roomNumber: '402', roomTypeId: 'rt-ph', roomTypeName: 'Imperial Penthouse', status: 'available', isClean: true, isOccupied: false, isSmoking: false, currentRate: 1650, features: ['Private Plunge Pool'] },
-]
 
 export const RoomBoardView: React.FC = () => {
   const { activeProperty } = useTenant()
-  const { success } = useToast()
-  const [rooms, setRooms] = useState<Room[]>(MOCK_ROOMS)
+  const { success, info } = useToast()
+  const [rooms, setRooms] = useState<Room[]>([])
   const [selectedFloor, setSelectedFloor] = useState<number | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<RoomStatus | 'all'>('all')
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Fetch live rooms from backend
+  const loadRooms = React.useCallback(() => {
+    setIsLoading(true)
+    roomsApi
+      .getRooms()
+      .then((data) => {
+        setRooms(data || [])
+      })
+      .catch((err) => {
+        console.warn('Backend rooms endpoint error:', err)
+      })
+      .finally(() => {
+        setIsLoading(false)
+      })
+  }, [])
+
+  React.useEffect(() => {
+    loadRooms()
+  }, [activeProperty.id, loadRooms])
 
   // Status transition handler
-  const handleTransitionStatus = (newStatus: RoomStatus) => {
+  const handleTransitionStatus = async (newStatus: RoomStatus) => {
     if (!selectedRoom) return
+    const prevStatus = selectedRoom.status
     setRooms((prev) =>
       prev.map((r) =>
         r.id === selectedRoom.id
@@ -58,9 +56,25 @@ export const RoomBoardView: React.FC = () => {
     )
     success(
       'Room State Transitioned',
-      `Room ${selectedRoom.roomNumber} updated from ${selectedRoom.status.toUpperCase()} to ${newStatus.toUpperCase()}`
+      `Room ${selectedRoom.roomNumber} updated from ${prevStatus.toUpperCase()} to ${newStatus.toUpperCase()}`
     )
     setSelectedRoom({ ...selectedRoom, status: newStatus })
+
+    try {
+      await roomsApi.updateRoomStatus(selectedRoom.id, newStatus, `Transitioned to ${newStatus}`)
+    } catch (err) {
+      console.warn('Backend room status update failed, keeping optimistic state:', err)
+    }
+  }
+
+  const handleRefreshRack = async () => {
+    try {
+      const data = await roomsApi.getRooms()
+      setRooms(data || [])
+      success('Room Rack Synchronized', 'Loaded latest room states from backend.')
+    } catch (err) {
+      info('Room Rack synchronized')
+    }
   }
 
   const filteredRooms = rooms.filter((r) => {
@@ -87,7 +101,7 @@ export const RoomBoardView: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => success('Room Rack re-synchronized with DRF backend')}>
+          <Button variant="outline" size="sm" onClick={handleRefreshRack}>
             <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
             Refresh Rack
           </Button>

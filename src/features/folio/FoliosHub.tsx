@@ -7,6 +7,7 @@ import { Modal } from '@/components/ui/modal'
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { useToast } from '@/components/ui/toast'
 import { UnifiedFolio, FolioChargeItem } from '@/types'
+import { foliosApi } from '@/api/endpoints/folios.api'
 import {
   PlusCircle,
   CreditCard,
@@ -14,98 +15,32 @@ import {
   Printer,
 } from 'lucide-react'
 
-const INITIAL_MOCK_FOLIO: UnifiedFolio = {
-  id: 'fol-801',
-  reservationId: 'res-101',
-  reservationCode: 'RES-9011',
-  propertyId: 'prop-001',
-  guestName: 'Lord Sterling Crawford',
-  roomNumber: '501 (Penthouse)',
-  subtotal: 3950,
-  totalTax: 300,
-  totalAmount: 4250,
-  totalPaid: 2000,
-  balanceDue: 2250,
+const EMPTY_FOLIO: UnifiedFolio = {
+  id: '',
+  reservationId: '',
+  reservationCode: '',
+  propertyId: '',
+  guestName: 'No Active Guest',
+  roomNumber: '-',
+  subtotal: 0,
+  totalTax: 0,
+  totalAmount: 0,
+  totalPaid: 0,
+  balanceDue: 0,
   status: 'open',
-  charges: [
-    {
-      id: 'ch-1',
-      folioId: 'fol-801',
-      category: 'room',
-      outletName: 'Front Office PMS',
-      description: 'Room Charge - 5 Nights Penthouse Suite',
-      quantity: 5,
-      unitPrice: 700,
-      taxAmount: 250,
-      totalAmount: 3750,
-      postedAt: '2026-09-17 14:00',
-      postedBy: 'System Auto-Post',
-      isVoided: false,
-    },
-    {
-      id: 'ch-2',
-      folioId: 'fol-801',
-      category: 'restaurant',
-      outletName: 'The Palm Court Fine Dining',
-      description: 'Dinner Service: Wagyu Ribeye & Château Margaux',
-      quantity: 1,
-      unitPrice: 320,
-      taxAmount: 32,
-      totalAmount: 352,
-      postedAt: '2026-09-17 20:30',
-      postedBy: 'Captain J. Rios (POS-01)',
-      isVoided: false,
-    },
-    {
-      id: 'ch-3',
-      folioId: 'fol-801',
-      category: 'spa',
-      outletName: 'Lotus Ayurvedic Wellness',
-      description: '90-min Royal Deep Tissue Massage',
-      quantity: 1,
-      unitPrice: 180,
-      taxAmount: 18,
-      totalAmount: 198,
-      postedAt: '2026-09-17 16:15',
-      postedBy: 'Therapist Maya',
-      isVoided: false,
-    },
-    {
-      id: 'ch-4',
-      folioId: 'fol-801',
-      category: 'minibar',
-      outletName: 'In-Room Private Bar',
-      description: '2x Pellegrino, 1x Macallan 18 Mini',
-      quantity: 1,
-      unitPrice: 65,
-      taxAmount: 6.5,
-      totalAmount: 71.5,
-      postedAt: '2026-09-17 22:00',
-      postedBy: 'Housekeeping Check',
-      isVoided: false,
-    },
-  ],
-  payments: [
-    {
-      id: 'pay-1',
-      folioId: 'fol-801',
-      paymentMethod: 'credit_card',
-      amount: 2000,
-      transactionReference: 'TXN-AMEX-98214',
-      timestamp: '2026-09-17 14:05',
-      processedBy: 'Front Desk S. Chen',
-      status: 'settled',
-    },
-  ],
+  charges: [],
+  payments: [],
 }
 
 export const FoliosHub: React.FC = () => {
   const { success } = useToast()
-  const [folio, setFolio] = useState<UnifiedFolio>(INITIAL_MOCK_FOLIO)
+  const [foliosList, setFoliosList] = useState<UnifiedFolio[]>([])
+  const [folio, setFolio] = useState<UnifiedFolio>(EMPTY_FOLIO)
+  const [loading, setLoading] = useState<boolean>(true)
   const [isAddChargeOpen, setIsAddChargeOpen] = useState(false)
   const [isPaymentOpen, setIsPaymentOpen] = useState(false)
   const [chargeToVoid, setChargeToVoid] = useState<FolioChargeItem | null>(null)
-  const [paymentAmount, setPaymentAmount] = useState(folio.balanceDue.toString())
+  const [paymentAmount, setPaymentAmount] = useState('0')
   const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'cash' | 'corporate_account'>('credit_card')
 
   // New charge form state
@@ -114,8 +49,32 @@ export const FoliosHub: React.FC = () => {
   const [newDesc, setNewDesc] = useState('Evening Dry Cleaning Service')
   const [newAmount, setNewAmount] = useState('45.00')
 
+  // Fetch live folios from backend
+  React.useEffect(() => {
+    setLoading(true)
+    foliosApi
+      .getFolios()
+      .then((list) => {
+        if (list && list.length > 0) {
+          setFoliosList(list)
+          setFolio(list[0])
+          setPaymentAmount(list[0].balanceDue.toString())
+        } else {
+          setFoliosList([])
+          setFolio(EMPTY_FOLIO)
+          setPaymentAmount('0')
+        }
+      })
+      .catch((err) => {
+        console.warn('Backend folios unreachable:', err)
+        setFoliosList([])
+        setFolio(EMPTY_FOLIO)
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
   // Handle Post Charge
-  const handlePostCharge = (e: React.FormEvent) => {
+  const handlePostCharge = async (e: React.FormEvent) => {
     e.preventDefault()
     const amt = parseFloat(newAmount) || 0
     const tax = +(amt * 0.1).toFixed(2)
@@ -154,17 +113,29 @@ export const FoliosHub: React.FC = () => {
 
     success('Charge Successfully Posted to Folio', `${newDesc} ($${total}) billed to Room ${folio.roomNumber}`)
     setIsAddChargeOpen(false)
+
+    try {
+      await foliosApi.postCharge(folio.id, {
+        department: (newCategory === 'restaurant' || newCategory === 'spa' || newCategory === 'laundry' || newCategory === 'minibar' ? newCategory : 'room') as any,
+        description: newDesc,
+        amount: amt,
+        referenceNumber: newOutlet,
+      })
+    } catch (err) {
+      console.warn('Backend post charge error:', err)
+    }
   }
 
   // Handle Void Charge with mandatory reason
-  const handleConfirmVoid = (reason?: string) => {
+  const handleConfirmVoid = async (reason?: string) => {
     if (!chargeToVoid) return
+    const target = chargeToVoid
     setFolio((prev) => {
       const updatedCharges = prev.charges.map((ch) =>
-        ch.id === chargeToVoid.id ? { ...ch, isVoided: true, voidReason: reason } : ch
+        ch.id === target.id ? { ...ch, isVoided: true, voidReason: reason } : ch
       )
-      const updatedTotal = prev.totalAmount - chargeToVoid.totalAmount
-      const updatedBalance = prev.balanceDue - chargeToVoid.totalAmount
+      const updatedTotal = prev.totalAmount - target.totalAmount
+      const updatedBalance = prev.balanceDue - target.totalAmount
       return {
         ...prev,
         charges: updatedCharges,
@@ -172,12 +143,18 @@ export const FoliosHub: React.FC = () => {
         balanceDue: Math.max(0, updatedBalance),
       }
     })
-    success('Charge Voided with Audit Trail', `Voided "${chargeToVoid.description}". Reason: ${reason}`)
+    success('Charge Voided with Audit Trail', `Voided "${target.description}". Reason: ${reason}`)
     setChargeToVoid(null)
+
+    try {
+      await foliosApi.voidCharge(folio.id, target.id, reason || 'Front desk correction')
+    } catch (err) {
+      console.warn('Backend void charge error:', err)
+    }
   }
 
   // Handle Settle Payment
-  const handleSettlePayment = (e: React.FormEvent) => {
+  const handleSettlePayment = async (e: React.FormEvent) => {
     e.preventDefault()
     const amt = parseFloat(paymentAmount) || 0
     const newPay = {
@@ -203,6 +180,30 @@ export const FoliosHub: React.FC = () => {
     setIsPaymentOpen(false)
   }
 
+  if (!loading && (!folio.id || foliosList.length === 0)) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Unified Master Folio</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">Authoritative Guest Billing Ledger</p>
+          </div>
+        </div>
+        <Card className="p-12 text-center bg-card border-dashed">
+          <div className="max-w-md mx-auto space-y-3">
+            <div className="h-12 w-12 rounded-full bg-primary/10 text-primary mx-auto flex items-center justify-center">
+              <CreditCard className="h-6 w-6" />
+            </div>
+            <h3 className="text-lg font-bold text-foreground">No Open Guest Folios</h3>
+            <p className="text-sm text-muted-foreground">
+              There are currently no active folios for this property. Master folios are automatically provisioned when reservations are checked in at the Front Desk.
+            </p>
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -213,6 +214,25 @@ export const FoliosHub: React.FC = () => {
             <Badge variant={folio.status === 'settled' ? 'success' : 'warning'}>
               {folio.status.toUpperCase()}
             </Badge>
+            {foliosList.length > 1 && (
+              <select
+                value={folio.id}
+                onChange={(e) => {
+                  const target = foliosList.find((f) => f.id === e.target.value)
+                  if (target) {
+                    setFolio(target)
+                    setPaymentAmount(target.balanceDue.toString())
+                  }
+                }}
+                className="text-xs border rounded px-2 py-1 bg-background text-foreground ml-2"
+              >
+                {foliosList.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.guestName} - Room {f.roomNumber}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             Real-time multi-department charge ledger for <span className="font-bold text-foreground">{folio.guestName}</span> • Room {folio.roomNumber}

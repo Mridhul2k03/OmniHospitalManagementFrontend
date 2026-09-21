@@ -20,6 +20,35 @@ export interface RegisterInstitutionPayload {
   admin_password: string
 }
 
+export interface RegisterPayload {
+  email: string
+  password: string
+  first_name?: string
+  last_name?: string
+  username?: string
+  organization_name?: string
+  organization_code?: string
+  role?: string
+  subscription_tier?: string
+}
+
+export interface RegisterResponse {
+  success: boolean
+  message: string
+  user: {
+    id: string
+    email: string
+    username: string
+    first_name: string
+    last_name: string
+    full_name: string
+    role: string
+    organization_id: string | null
+    organization_name: string | null
+  }
+  active_tenant?: InstitutionTenant
+}
+
 export interface HealthStatusResponse {
   status: string
   database: string
@@ -74,6 +103,13 @@ export const authApi = {
   // Onboarding endpoint to create a new institution tenant and primary admin
   registerInstitution: async (data: RegisterInstitutionPayload): Promise<unknown> => {
     const response = await apiClient.post('/auth/register-institution/', data)
+    return response.data
+  },
+
+  // POST /api/v1/auth/register/
+  // Public registration endpoint for new organizations and property managers
+  register: async (data: RegisterPayload): Promise<RegisterResponse> => {
+    const response = await apiClient.post<RegisterResponse>('/auth/register/', data)
     return response.data
   },
 

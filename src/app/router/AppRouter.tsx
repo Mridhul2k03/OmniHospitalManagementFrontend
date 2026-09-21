@@ -5,10 +5,14 @@ import { AuthLayout } from '@/app/layouts/AuthLayout'
 import { KDSLayout } from '@/app/layouts/KDSLayout'
 import { ShareholderLayout } from '@/app/layouts/ShareholderLayout'
 import { RequireAuth } from '@/auth/guards/RequireAuth'
+import { RequirePlan } from '@/auth/guards/RequirePlan'
+import { RequireRole } from '@/auth/guards/RequireRole'
 import { RouteLoader } from '@/components/ui/route-loader'
 
 // Code-split dynamic route imports
+const SuperAdminHub = React.lazy(() => import('@/features/superadmin/SuperAdminHub').then(m => ({ default: m.SuperAdminHub })))
 const LoginView = React.lazy(() => import('@/features/auth/LoginView').then(m => ({ default: m.LoginView })))
+const RegisterView = React.lazy(() => import('@/features/auth/RegisterView').then(m => ({ default: m.RegisterView })))
 const AccessDeniedView = React.lazy(() => import('@/features/auth/AccessDeniedView').then(m => ({ default: m.AccessDeniedView })))
 const FrontDeskHub = React.lazy(() => import('@/features/frontdesk/FrontDeskHub').then(m => ({ default: m.FrontDeskHub })))
 const RoomBoardView = React.lazy(() => import('@/features/rooms/RoomBoardView').then(m => ({ default: m.RoomBoardView })))
@@ -34,6 +38,7 @@ const HRHub = React.lazy(() => import('@/features/hr/HRHub').then(m => ({ defaul
 const LoyaltyHub = React.lazy(() => import('@/features/loyalty/LoyaltyHub').then(m => ({ default: m.LoyaltyHub })))
 const SettingsHub = React.lazy(() => import('@/features/settings/SettingsHub').then(m => ({ default: m.SettingsHub })))
 const StudentsHub = React.lazy(() => import('@/features/education/StudentsHub').then(m => ({ default: m.StudentsHub })))
+const SystemStatusHub = React.lazy(() => import('@/features/system/SystemStatusHub').then(m => ({ default: m.SystemStatusHub })))
 
 export const AppRouter: React.FC = () => {
   return (
@@ -46,6 +51,7 @@ export const AppRouter: React.FC = () => {
           {/* Auth Group */}
           <Route path="/auth" element={<AuthLayout />}>
             <Route path="login" element={<LoginView />} />
+            <Route path="register" element={<RegisterView />} />
             <Route index element={<Navigate to="/auth/login" replace />} />
           </Route>
 
@@ -58,7 +64,14 @@ export const AppRouter: React.FC = () => {
               </RequireAuth>
             }
           >
-            <Route index element={<KitchenDisplaySystem />} />
+            <Route
+              index
+              element={
+                <RequirePlan minPlan="professional" featureName="Kitchen Display System (KOT)">
+                  <KitchenDisplaySystem />
+                </RequirePlan>
+              }
+            />
           </Route>
 
           {/* Dedicated Executive Read-Only Shareholder Portal */}
@@ -70,7 +83,14 @@ export const AppRouter: React.FC = () => {
               </RequireAuth>
             }
           >
-            <Route index element={<ShareholderPortal />} />
+            <Route
+              index
+              element={
+                <RequirePlan minPlan="enterprise" featureName="Shareholder Portal">
+                  <ShareholderPortal />
+                </RequirePlan>
+              }
+            />
           </Route>
 
           {/* Primary Enterprise Operational App Shell */}
@@ -97,13 +117,50 @@ export const AppRouter: React.FC = () => {
             <Route path="transport" element={<TransportHub />} />
             <Route path="security" element={<SecurityGateHub />} />
             <Route path="cloakroom" element={<CloakroomHub />} />
-            <Route path="pricing" element={<DynamicPricingHub />} />
-            <Route path="channels" element={<ChannelsHub />} />
-            <Route path="corporate" element={<ExecutiveDashboard />} />
+            <Route
+              path="pricing"
+              element={
+                <RequirePlan minPlan="enterprise" featureName="Dynamic AI Pricing Engine">
+                  <DynamicPricingHub />
+                </RequirePlan>
+              }
+            />
+            <Route
+              path="channels"
+              element={
+                <RequirePlan minPlan="enterprise" featureName="Global OTA Channel Manager">
+                  <ChannelsHub />
+                </RequirePlan>
+              }
+            />
+            <Route
+              path="corporate"
+              element={
+                <RequirePlan minPlan="enterprise" featureName="Executive Portfolio Dashboards">
+                  <ExecutiveDashboard />
+                </RequirePlan>
+              }
+            />
             <Route path="hr" element={<HRHub />} />
             <Route path="students" element={<StudentsHub />} />
             <Route path="loyalty" element={<LoyaltyHub />} />
             <Route path="settings" element={<SettingsHub />} />
+            <Route
+              path="system-status"
+              element={
+                <RequirePlan minPlan="enterprise" featureName="System & API Health Hub">
+                  <SystemStatusHub />
+                </RequirePlan>
+              }
+            />
+            <Route
+              path="superadmin"
+              element={
+                <RequireRole allowedRoles={['super_admin']}>
+                  <SuperAdminHub />
+                </RequireRole>
+              }
+            />
             <Route path="access-denied" element={<AccessDeniedView />} />
             <Route index element={<Navigate to="/app/frontdesk" replace />} />
           </Route>

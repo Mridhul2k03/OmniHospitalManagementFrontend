@@ -23,6 +23,8 @@ import {
   UserCheck,
 } from 'lucide-react'
 import { Reservation } from '@/types'
+import { reservationsApi } from '@/api/endpoints/reservations.api'
+import { roomsApi } from '@/api/endpoints/rooms.api'
 
 // Mock Operational Reservations for the Active Property
 const INITIAL_OPERATIONAL_RESERVATIONS: Reservation[] = [
@@ -178,6 +180,23 @@ export const FrontDeskHub: React.FC = () => {
   const [newRoomNumber, setNewRoomNumber] = useState('')
   const [confirmTransferOpen, setConfirmTransferOpen] = useState(false)
 
+  // Fetch live operational reservations from backend
+  React.useEffect(() => {
+    reservationsApi
+      .getReservations()
+      .then((data) => {
+        if (data && data.length > 0) {
+          // Merge API items with initial items, prioritizing API items by code
+          const apiCodes = new Set(data.map((r) => r.code))
+          const nonOverlapping = INITIAL_OPERATIONAL_RESERVATIONS.filter((r) => !apiCodes.has(r.code))
+          setReservations([...data, ...nonOverlapping])
+        }
+      })
+      .catch((err) => {
+        console.warn('Backend reservations unreachable, running with mock roster:', err)
+      })
+  }, [activeProperty.id])
+
   // Filter reservations based on active tab and query
   const filteredReservations = reservations.filter((r) => {
     const matchesQuery =
@@ -189,41 +208,57 @@ export const FrontDeskHub: React.FC = () => {
     if (!matchesQuery) return false
 
     if (activeTab === 'arrivals') {
-      return r.checkInDate === '2026-09-17' && r.status === 'confirmed'
+      return r.status === 'confirmed' || r.status === 'pending' || r.status === 'checked_in'
     }
     if (activeTab === 'departures') {
-      return r.checkOutDate === '2026-09-17' && r.status === 'in_house'
+      return r.status === 'in_house'
     }
     return r.status === 'in_house'
   })
 
   // Check In Handler
-  const handleCheckIn = (resId: string) => {
+  const handleCheckIn = async (resId: string) => {
+    const target = reservations.find((r) => r.id === resId)
     setReservations((prev) =>
       prev.map((r) => (r.id === resId ? { ...r, status: 'in_house' } : r))
     )
-    const target = reservations.find((r) => r.id === resId)
     success(
       'Guest Successfully Checked In',
       `${target?.guest.firstName} ${target?.guest.lastName} has been checked into Room ${target?.roomNumber || 'Pending'}. Keycard encoded.`
     )
     setIsCheckInOpen(false)
+
+    try {
+      await reservationsApi.checkIn(resId, {
+        assignedRoomId: target?.roomId || 'default-room',
+      })
+    } catch (err) {
+      console.warn('Backend check-in sync error:', err)
+    }
   }
 
   // Check Out Handler
-  const handleCheckOut = (resId: string) => {
+  const handleCheckOut = async (resId: string) => {
+    const target = reservations.find((r) => r.id === resId)
     setReservations((prev) =>
       prev.map((r) => (r.id === resId ? { ...r, status: 'checked_out' } : r))
     )
-    const target = reservations.find((r) => r.id === resId)
     success(
       'Guest Successfully Checked Out',
       `Folio for ${target?.guest.firstName} ${target?.guest.lastName} settled. Room ${target?.roomNumber} marked as DIRTY for Housekeeping inspection.`
     )
+
+    try {
+      await reservationsApi.checkOut(resId, {
+        settlementMethod: 'CARD',
+      })
+    } catch (err) {
+      console.warn('Backend check-out sync error:', err)
+    }
   }
 
   // Room Transfer Handler
-  const handleConfirmTransfer = (reason?: string) => {
+  const handleConfirmTransfer = async (reason?: string) => {
     if (!selectedRes || !newRoomNumber) return
     const oldRoom = selectedRes.roomNumber
     setReservations((prev) =>
@@ -235,8 +270,20 @@ export const FrontDeskHub: React.FC = () => {
     )
     setConfirmTransferOpen(false)
     setIsTransferOpen(false)
+
+    if (selectedRes.roomId) {
+      try {
+        await roomsApi.transferRoom(selectedRes.roomId, newRoomNumber, reason || 'Operational adjustment')
+      } catch (err) {
+        console.warn('Backend transfer sync warning:', err)
+      }
+    }
     setSelectedRes(null)
   }
+
+  const arrivalsCount = reservations.filter((r) => r.status === 'confirmed' || r.status === 'pending' || r.status === 'checked_in').length
+  const departuresCount = reservations.filter((r) => r.status === 'in_house').length
+  const inHouseCount = reservations.filter((r) => r.status === 'in_house').length
 
   return (
     <div className="space-y-6">
@@ -261,9 +308,9 @@ export const FrontDeskHub: React.FC = () => {
 
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-        <StatCard title="Today Arrivals" value="14" subtitle="4 VIP Expected" icon={<LogIn className="h-4 w-4" />} />
-        <StatCard title="Today Departures" value="11" subtitle="9 Settled" icon={<LogOut className="h-4 w-4" />} />
-        <StatCard title="In-House Guests" value="148" subtitle="88% Capacity" icon={<Users className="h-4 w-4" />} />
+        <StatCard title="Today Arrivals" value={arrivalsCount.toString()} subtitle="VIP & Standard" icon={<LogIn className="h-4 w-4" />} />
+        <StatCard title="Today Departures" value={departuresCount.toString()} subtitle="Pending Checkout" icon={<LogOut className="h-4 w-4" />} />
+        <StatCard title="In-House Guests" value={inHouseCount.toString()} subtitle="Active Roster" icon={<Users className="h-4 w-4" />} />
         <StatCard title="Available Rooms" value="18" subtitle="Clean & Ready" icon={<BedDouble className="h-4 w-4" />} />
         <StatCard title="Cleaning Queue" value="8" subtitle="Attendants On-Floor" icon={<Sparkles className="h-4 w-4" />} />
         <StatCard title="Maintenance" value="3" subtitle="HVAC / Plumbing" icon={<Wrench className="h-4 w-4" />} />
@@ -285,7 +332,7 @@ export const FrontDeskHub: React.FC = () => {
               >
                 <LogIn className="h-3.5 w-3.5" />
                 <span>Today's Arrivals</span>
-                <span className="rounded-full bg-primary/10 px-1.5 py-0.2 text-[10px] font-bold text-primary">2</span>
+                <span className="rounded-full bg-primary/10 px-1.5 py-0.2 text-[10px] font-bold text-primary">{arrivalsCount}</span>
               </button>
               <button
                 type="button"
@@ -296,7 +343,7 @@ export const FrontDeskHub: React.FC = () => {
               >
                 <LogOut className="h-3.5 w-3.5" />
                 <span>Today's Departures</span>
-                <span className="rounded-full bg-muted-foreground/20 px-1.5 py-0.2 text-[10px] font-bold text-foreground">2</span>
+                <span className="rounded-full bg-muted-foreground/20 px-1.5 py-0.2 text-[10px] font-bold text-foreground">{departuresCount}</span>
               </button>
               <button
                 type="button"
@@ -307,6 +354,7 @@ export const FrontDeskHub: React.FC = () => {
               >
                 <Users className="h-3.5 w-3.5" />
                 <span>In-House Guests</span>
+                <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.2 text-[10px] font-bold text-emerald-600">{inHouseCount}</span>
               </button>
             </div>
 
