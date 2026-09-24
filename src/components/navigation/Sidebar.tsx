@@ -28,7 +28,6 @@ import {
   Boxes,
   UserCheck,
   Settings,
-  GraduationCap,
   Activity,
   Lock,
 } from 'lucide-react'
@@ -69,7 +68,6 @@ const NAVIGATION_SCHEMA: NavSection[] = [
       { label: 'Room Availability Board', path: '/app/rooms', icon: LayoutGrid, roles: [...LEADERSHIP_ROLES, 'front_desk', 'housekeeping', 'maintenance'], minPlan: 'starter' },
       { label: 'Reservations', path: '/app/reservations', icon: CalendarDays, roles: [...LEADERSHIP_ROLES, 'front_desk'], minPlan: 'starter' },
       { label: 'Digital Check-in', path: '/app/checkin', icon: UserCheck, roles: [...LEADERSHIP_ROLES, 'front_desk', 'guest'], minPlan: 'starter', badge: 'Live' },
-      { label: 'Students & Admissions', path: '/app/students', icon: GraduationCap, roles: [...LEADERSHIP_ROLES, 'front_desk'], minPlan: 'professional', badge: 'API' },
     ],
   },
   {
@@ -123,16 +121,16 @@ const NAVIGATION_SCHEMA: NavSection[] = [
     ],
   },
   {
-    title: 'Platform Administration',
+    title: 'ILA Platform Owner',
     roles: ['super_admin'],
     items: [
       {
-        label: 'Superadmin Console',
-        path: '/app/superadmin',
+        label: 'ILA Master Console',
+        path: '/ila-admin',
         icon: ShieldCheck,
         roles: ['super_admin'],
         minPlan: 'starter',
-        badge: 'Root',
+        badge: 'Owner',
       },
     ],
   },
@@ -202,11 +200,11 @@ export const Sidebar: React.FC<{ isCollapsed?: boolean }> = ({ isCollapsed = fal
                   </div>
                 )}
                 {section.items.map((item) => {
-                  const isPlanUnlocked = isFeatureAllowed(item.minPlan)
+                  const isPlanUnlocked = isSuperAdmin || isFeatureAllowed(item.minPlan)
                   const Icon = item.icon
 
                   if (!isPlanUnlocked) {
-                    // Feature is role-allowed but plan-locked
+                    // Feature is role-allowed but plan-locked for tenant user
                     return (
                       <button
                         key={item.path}
@@ -262,9 +260,10 @@ export const Sidebar: React.FC<{ isCollapsed?: boolean }> = ({ isCollapsed = fal
         {/* Footer / User Profile snippet */}
         <div className="border-t border-border p-3">
           <div className="flex items-center gap-3 rounded-lg p-2 bg-muted/40">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary uppercase">
-              {user?.firstName?.[0] || 'U'}
-              {user?.lastName?.[0] || 'S'}
+            <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold uppercase ${
+              isSuperAdmin ? 'bg-amber-500/20 text-amber-500' : 'bg-primary/20 text-primary'
+            }`}>
+              {isSuperAdmin ? <ShieldCheck className="h-4 w-4" /> : (user?.firstName?.[0] || 'U')}
             </div>
             {!isCollapsed && (
               <div className="flex flex-col min-w-0 flex-1">
@@ -272,7 +271,7 @@ export const Sidebar: React.FC<{ isCollapsed?: boolean }> = ({ isCollapsed = fal
                   {user?.firstName} {user?.lastName}
                 </span>
                 <span className="text-[10px] text-muted-foreground capitalize truncate">
-                  {user?.role.replace(/_/g, ' ')}
+                  {isSuperAdmin ? 'Platform Owner • Root' : user?.role.replace(/_/g, ' ')}
                 </span>
               </div>
             )}
@@ -280,8 +279,8 @@ export const Sidebar: React.FC<{ isCollapsed?: boolean }> = ({ isCollapsed = fal
         </div>
       </aside>
 
-      {/* Subscription Upgrade Modal */}
-      <SubscriptionUpgradeModal />
+      {/* Subscription Upgrade Modal - for tenant users */}
+      {!isSuperAdmin && <SubscriptionUpgradeModal />}
     </>
   )
 }

@@ -106,14 +106,18 @@ export interface Building {
   id: string
   propertyId: string
   name: string
-  floorsCount: number
+  code?: string
+  floorsCount?: number
 }
 
 export interface Floor {
   id: string
   buildingId: string
   number: number
+  floorNumber?: number
   name: string
+  buildingName?: string
+  roomsCount?: number
 }
 
 // --- ROOMS & AVAILABILITY ---
@@ -159,6 +163,7 @@ export interface Room {
   isOccupied: boolean
   isSmoking: boolean
   currentRate: number
+  maxOccupancy?: number
   features: string[]
   notes?: string
 }
@@ -357,15 +362,19 @@ export type HousekeepingStatus =
   | 'cleaning_completed'
   | 'inspection'
   | 'available'
+  | 'maintenance'
+  | 'out_of_order'
 
 export interface HousekeepingTask {
   id: string
   propertyId: string
   roomId: string
   roomNumber: string
+  floorNumber?: number
   roomTypeName: string
   assignedAttendantId?: string
   assignedAttendantName?: string
+  assignedTo?: string
   priority: 'low' | 'medium' | 'high' | 'urgent'
   status: HousekeepingStatus
   scheduledTime: string
@@ -507,13 +516,14 @@ export interface CloakroomTicket {
 // --- INVENTORY & PROCUREMENT ---
 export interface InventoryStockItem {
   id: string
+  propertyId?: string
   name: string
   category: 'F&B Provisions' | 'Guest Amenities' | 'Linens' | 'Engineering Spares' | 'Bar Spirits' | string
   currentStock: number
   reorderPoint: number
   unit: string
   storeLocation: string
-  status: 'optimal' | 'low_stock' | 'reorder_required'
+  status: 'optimal' | 'low_stock' | 'reorder_required' | 'out_of_stock'
 }
 
 // --- HR & STAFF ATTENDANCE ---
@@ -704,14 +714,15 @@ export interface InstitutionTenant {
   id: string
   name: string
   slug: string
-  institution_type?: 'k12_school' | 'university_college' | 'coaching_institute' | 'vocational' | string
+  institution_type?: 'luxury_hospitality_chain' | 'boutique_hotel' | 'resort_hotel' | 'commercial_property' | string
+  subscription_tier?: SubscriptionTier | 'STARTER' | 'PROFESSIONAL' | 'ENTERPRISE'
   is_default?: boolean
   domain?: string
   features?: Record<string, boolean>
   terminology?: Record<string, string>
 }
 
-export interface EduUser {
+export interface HospitalityUser {
   id: string
   email: string
   first_name: string
@@ -723,55 +734,15 @@ export interface EduUser {
   permissions?: string[]
 }
 
+// Backwards compatibility alias
+export type EduUser = HospitalityUser
+
 export interface AuthLoginResponse {
   access?: string
   refresh?: string
-  user: EduUser
+  user: HospitalityUser
   accessible_tenants: InstitutionTenant[]
   active_tenant: InstitutionTenant
-}
-
-export interface StudentGuardianLink {
-  id: string
-  guardian_name: string
-  relationship: string
-  phone_number: string
-  is_primary?: boolean
-}
-
-export interface Student {
-  id: string
-  admission_number: string
-  first_name: string
-  last_name: string
-  full_name: string
-  email: string
-  user_id?: string
-  class_cohort_name?: string
-  section_name?: string
-  date_of_birth?: string
-  gender?: 'M' | 'F' | 'O'
-  status: 'admitted' | 'enrolled' | 'suspended' | 'graduated' | 'withdrawn'
-  guardian_links?: StudentGuardianLink[]
-  created_at?: string
-}
-
-export interface StudentAdmissionPayload {
-  first_name: string
-  last_name: string
-  email: string
-  date_of_birth: string
-  gender: 'M' | 'F' | 'O'
-  admission_date: string
-  admission_number: string
-  class_name: string
-  section_name: string
-  guardian: {
-    first_name: string
-    last_name: string
-    phone_number: string
-    relationship: string
-  }
 }
 
 export interface StaffMember {
@@ -784,69 +755,6 @@ export interface StaffMember {
   joined_date?: string
   employment_type: 'full_time' | 'part_time' | 'contract'
   status?: string
-}
-
-export interface AcademicYear {
-  id: string
-  name: string
-  start_date: string
-  end_date: string
-  is_current: boolean
-}
-
-export interface AcademicTerm {
-  id: string
-  name: string
-  academic_year: string
-  start_date: string
-  end_date: string
-}
-
-export interface AcademicDepartment {
-  id: string
-  name: string
-  code: string
-  head_of_department?: string
-}
-
-export interface AttendanceEntry {
-  student_id: string
-  status: 'present' | 'absent' | 'late' | 'excused'
-  remarks?: string
-}
-
-export interface BulkAttendancePayload {
-  section_id: string
-  date: string
-  entries: AttendanceEntry[]
-}
-
-export interface Exam {
-  id: string
-  name: string
-  academic_term: string
-  start_date: string
-  end_date: string
-  is_published: boolean
-}
-
-export interface ExamMark {
-  id: string
-  exam: string
-  student: string
-  subject: string
-  marks_obtained: string
-  max_marks: string
-}
-
-export interface EduInvoice {
-  id: string
-  student: string | Student
-  invoice_number: string
-  amount: string
-  due_date: string
-  status: 'issued' | 'partially_paid' | 'paid' | 'overdue'
-  created_at: string
 }
 
 export interface RecordPaymentPayload {
@@ -869,7 +777,7 @@ export interface AnnouncementItem {
   id: string
   title: string
   content: string
-  target_audience: 'all' | 'students' | 'faculty' | 'staff' | string
+  target_audience: 'all' | 'guests' | 'management' | 'staff' | string
   is_published: boolean
   created_at: string
 }

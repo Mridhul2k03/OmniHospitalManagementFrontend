@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { RequireRole } from '@/auth/guards/RequireRole'
+import { AdminRoute } from '@/auth/guards/AdminRoute'
 import { AuthContext } from '@/auth/AuthContext'
 import { AuthenticatedUser } from '@/types'
 
@@ -60,5 +61,47 @@ describe('Role-Based Route Guards', () => {
     renderWithRole('shareholder')
     expect(screen.queryByText('Protected Front Desk Hub Content')).not.toBeInTheDocument()
     expect(screen.getByText('Access Denied Page')).toBeInTheDocument()
+  })
+})
+
+describe('SuperAdmin AdminRoute Guard (Blueprint Recipe E)', () => {
+  const renderAdminRoute = (user: AuthenticatedUser | null) => {
+    return render(
+      <AuthContext.Provider
+        value={{
+          user,
+          tokens: user ? { access: 'mock-access', refresh: 'mock-refresh' } : null,
+          isAuthenticated: Boolean(user),
+          isLoading: false,
+          login: async () => {},
+          logout: () => {},
+          switchRole: () => {},
+          hasRole: (roles) => Boolean(user && roles.includes(user.role)),
+          hasPermission: () => true,
+        }}
+      >
+        <MemoryRouter initialEntries={['/admin']}>
+          <Routes>
+            <Route path="/admin" element={<AdminRoute />}>
+              <Route index element={<div>Platform SuperAdmin Console Content</div>} />
+            </Route>
+            <Route path="/auth/admin-login" element={<div>Admin Login Screen</div>} />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>
+    )
+  }
+
+  it('permits Platform SuperAdmin users to access the platform console', () => {
+    const superAdmin = createMockUser('super_admin')
+    renderAdminRoute(superAdmin)
+    expect(screen.getByText('Platform SuperAdmin Console Content')).toBeInTheDocument()
+  })
+
+  it('denies regular tenant admin from accessing platform console', () => {
+    const orgAdmin = createMockUser('org_admin')
+    renderAdminRoute(orgAdmin)
+    expect(screen.queryByText('Platform SuperAdmin Console Content')).not.toBeInTheDocument()
+    expect(screen.getByText('Access Restricted — ILA Platform SuperAdmin Only')).toBeInTheDocument()
   })
 })

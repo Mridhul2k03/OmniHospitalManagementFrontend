@@ -1,5 +1,6 @@
 import React from 'react'
 import { useSubscription } from '@/context/SubscriptionContext'
+import { useAuth } from '@/auth/useAuth'
 import { SubscriptionTier } from '@/types'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -16,7 +17,13 @@ export const RequirePlan: React.FC<RequirePlanProps> = ({
   minPlan,
   featureName = 'This operational module',
 }) => {
-  const { isFeatureAllowed, openUpgradeModal, planDetails } = useSubscription()
+  const { user } = useAuth()
+  const { isFeatureAllowed, openUpgradeModal, planDetails, isSuperAdmin } = useSubscription()
+
+  // Platform Owners (Super Admins) have unrestricted root access across all modules
+  if (isSuperAdmin || user?.role?.toLowerCase() === 'super_admin' || user?.permissions?.includes('*')) {
+    return <>{children}</>
+  }
 
   if (isFeatureAllowed(minPlan)) {
     return <>{children}</>

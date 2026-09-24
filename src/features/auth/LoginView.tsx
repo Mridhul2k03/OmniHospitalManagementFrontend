@@ -4,7 +4,7 @@ import { useAuth } from '@/auth/useAuth'
 import { UserRole } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ShieldCheck, Lock, Mail, Eye, EyeOff, AlertCircle, Building, Sparkles } from 'lucide-react'
+import { ShieldCheck, ShieldAlert, Lock, Mail, Eye, EyeOff, AlertCircle, Building, Sparkles } from 'lucide-react'
 
 export const LoginView: React.FC = () => {
   const { login, isLoading, error: authContextError, clearError } = useAuth()
@@ -72,6 +72,28 @@ export const LoginView: React.FC = () => {
       <div className="flex items-center gap-2 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-[11px] text-emerald-700 dark:text-emerald-400">
         <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
         <span>HttpOnly Cookie Authentication Active &bull; Multi-Tenant Scoped</span>
+      </div>
+
+      {/* Admin Console Switcher Link Card */}
+      <div className="rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent p-3 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
+            <ShieldAlert className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-xs font-black text-foreground flex items-center gap-1.5">
+              System Administrator?
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-500 font-bold uppercase">Restricted</span>
+            </p>
+            <p className="text-[11px] text-muted-foreground">Access the dedicated Admin Console & Master Options</p>
+          </div>
+        </div>
+        <Link
+          to="/auth/admin-login"
+          className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-3 py-1.5 rounded-lg border border-amber-500/30 transition-all hover:scale-[1.02] cursor-pointer"
+        >
+          Admin Console &rarr;
+        </Link>
       </div>
 
       {/* Error Alert Box */}
@@ -184,12 +206,12 @@ export const LoginView: React.FC = () => {
               value={tenantSlug}
               onChange={(e) => setTenantSlug(e.target.value)}
               required
-              placeholder="oxford-crest"
+              placeholder="ghhg"
               className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
           <p className="mt-1 text-[10px] text-muted-foreground">
-            Slug or UUID for data isolation (e.g. <code className="font-mono">oxford-crest</code>).
+            Slug or UUID for data isolation (e.g. <code className="font-mono">ghhg</code>).
           </p>
         </div>
 
@@ -203,15 +225,16 @@ export const LoginView: React.FC = () => {
             onChange={(e) => setSelectedRole(e.target.value as UserRole)}
             className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
           >
-            <option value="super_admin">Institution Admin / Super Admin (Full Governance)</option>
-            <option value="property_manager">Faculty / Property Manager (Academic & Operations)</option>
-            <option value="front_desk">Front Desk Agent (Admissions & Registrar)</option>
-            <option value="accountant">Financial Accountant (Invoices & Payments)</option>
-            <option value="hr">HR Director (Faculty & Staff Rosters)</option>
-            <option value="chef_kitchen">Executive Chef (Cafeteria / KDS)</option>
-            <option value="restaurant_pos">Point of Sale (Dining & Services)</option>
+            <option value="org_admin">Hotel General Manager / Org Admin</option>
+            <option value="property_manager">Property Manager (Operations & PMS)</option>
+            <option value="front_desk">Front Desk Agent (Reception & Reservations)</option>
+            <option value="accountant">Financial Accountant (Invoices & Folios)</option>
+            <option value="hr">HR Director (Staff Rosters)</option>
+            <option value="chef_kitchen">Executive Chef (Kitchen KDS)</option>
+            <option value="restaurant_pos">Point of Sale (Dining & Outlets)</option>
             <option value="shareholder">Shareholder (Audited Portal)</option>
-            <option value="guest">Student / Learner Portal</option>
+            <option value="guest">Guest Portal (Self-Service)</option>
+            <option value="super_admin">ILA Platform SuperAdmin (Root Authority)</option>
           </select>
         </div>
 
@@ -220,7 +243,16 @@ export const LoginView: React.FC = () => {
         </Button>
       </form>
 
-      <div className="text-center pt-3 border-t border-border/60">
+      <div className="text-center pt-3 border-t border-border/60 space-y-2">
+        <p className="text-xs text-muted-foreground">
+          ILA SaaS Platform Owner?{' '}
+          <Link
+            to="/ila-admin/login"
+            className="font-bold text-purple-400 hover:text-purple-300 hover:underline transition-colors"
+          >
+            Access ILA Platform Console &rarr;
+          </Link>
+        </p>
         <p className="text-xs text-muted-foreground">
           New hospitality client or property?{' '}
           <Link

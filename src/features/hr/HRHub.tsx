@@ -31,12 +31,33 @@ export const HRHub: React.FC = () => {
     })
   }, [])
 
-  const handlePunchClock = () => {
-    setHasClockedIn(!hasClockedIn)
-    if (!hasClockedIn) {
-      success('Shift Clock-In Registered', `Digital biometric punch logged at ${new Date().toLocaleTimeString()}`)
+  const handlePunchClock = async () => {
+    const nextState = !hasClockedIn
+    setHasClockedIn(nextState)
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (nextState) {
+      success('Shift Clock-In Registered', `Digital biometric punch logged at ${timeStr}`)
     } else {
       success('Shift Clock-Out Registered', `Shift hours finalized and transmitted to payroll.`)
+    }
+
+    if (staff.length > 0) {
+      const targetId = staff[0].id
+      setStaff((prev) =>
+        prev.map((s, idx) =>
+          idx === 0
+            ? { ...s, status: nextState ? 'on_duty' : 'off_duty', clockInTime: nextState ? timeStr : undefined }
+            : s
+        )
+      )
+      try {
+        await apiClient.patch(`/hr/staff/${targetId}/`, {
+          status: nextState ? 'on_duty' : 'off_duty',
+          clockInTime: nextState ? timeStr : null,
+        })
+      } catch (err) {
+        console.warn('Backend HR punch sync error:', err)
+      }
     }
   }
 

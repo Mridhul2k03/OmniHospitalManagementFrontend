@@ -7,11 +7,15 @@ import { ShareholderLayout } from '@/app/layouts/ShareholderLayout'
 import { RequireAuth } from '@/auth/guards/RequireAuth'
 import { RequirePlan } from '@/auth/guards/RequirePlan'
 import { RequireRole } from '@/auth/guards/RequireRole'
+import { AdminRoute } from '@/auth/guards/AdminRoute'
+import { ILAPlatformLayout } from '@/app/layouts/ILAPlatformLayout'
 import { RouteLoader } from '@/components/ui/route-loader'
 
 // Code-split dynamic route imports
 const SuperAdminHub = React.lazy(() => import('@/features/superadmin/SuperAdminHub').then(m => ({ default: m.SuperAdminHub })))
 const LoginView = React.lazy(() => import('@/features/auth/LoginView').then(m => ({ default: m.LoginView })))
+const AdminLoginView = React.lazy(() => import('@/features/auth/AdminLoginView').then(m => ({ default: m.AdminLoginView })))
+const ILALoginView = React.lazy(() => import('@/features/auth/ILALoginView').then(m => ({ default: m.ILALoginView })))
 const RegisterView = React.lazy(() => import('@/features/auth/RegisterView').then(m => ({ default: m.RegisterView })))
 const AccessDeniedView = React.lazy(() => import('@/features/auth/AccessDeniedView').then(m => ({ default: m.AccessDeniedView })))
 const FrontDeskHub = React.lazy(() => import('@/features/frontdesk/FrontDeskHub').then(m => ({ default: m.FrontDeskHub })))
@@ -37,7 +41,6 @@ const ShareholderPortal = React.lazy(() => import('@/features/shareholder/Shareh
 const HRHub = React.lazy(() => import('@/features/hr/HRHub').then(m => ({ default: m.HRHub })))
 const LoyaltyHub = React.lazy(() => import('@/features/loyalty/LoyaltyHub').then(m => ({ default: m.LoyaltyHub })))
 const SettingsHub = React.lazy(() => import('@/features/settings/SettingsHub').then(m => ({ default: m.SettingsHub })))
-const StudentsHub = React.lazy(() => import('@/features/education/StudentsHub').then(m => ({ default: m.StudentsHub })))
 const SystemStatusHub = React.lazy(() => import('@/features/system/SystemStatusHub').then(m => ({ default: m.SystemStatusHub })))
 
 export const AppRouter: React.FC = () => {
@@ -48,12 +51,30 @@ export const AppRouter: React.FC = () => {
           {/* Root Redirect */}
           <Route path="/" element={<Navigate to="/app/frontdesk" replace />} />
 
-          {/* Auth Group */}
+          {/* Auth Group (Hotel Tenant Staff & Guests) */}
           <Route path="/auth" element={<AuthLayout />}>
             <Route path="login" element={<LoginView />} />
+            <Route path="admin-login" element={<Navigate to="/ila-admin/login" replace />} />
             <Route path="register" element={<RegisterView />} />
             <Route index element={<Navigate to="/auth/login" replace />} />
           </Route>
+
+          {/* Dedicated ILA SaaS Platform SuperAdmin Portal */}
+          <Route element={<AuthLayout />}>
+            <Route path="/ila-admin/login" element={<ILALoginView />} />
+          </Route>
+          <Route path="/ila-admin" element={<AdminRoute />}>
+            <Route element={<ILAPlatformLayout />}>
+              <Route index element={<SuperAdminHub />} />
+              <Route path="*" element={<SuperAdminHub />} />
+            </Route>
+          </Route>
+
+          {/* Admin Aliases */}
+          <Route path="/admin" element={<Navigate to="/ila-admin" replace />} />
+          <Route path="/admin/*" element={<Navigate to="/ila-admin" replace />} />
+          <Route path="/admin-login" element={<Navigate to="/ila-admin/login" replace />} />
+          <Route path="/admin/login" element={<Navigate to="/ila-admin/login" replace />} />
 
           {/* High-Contrast Fullscreen Kitchen Display System (KDS) */}
           <Route
@@ -142,7 +163,6 @@ export const AppRouter: React.FC = () => {
               }
             />
             <Route path="hr" element={<HRHub />} />
-            <Route path="students" element={<StudentsHub />} />
             <Route path="loyalty" element={<LoyaltyHub />} />
             <Route path="settings" element={<SettingsHub />} />
             <Route
@@ -153,14 +173,7 @@ export const AppRouter: React.FC = () => {
                 </RequirePlan>
               }
             />
-            <Route
-              path="superadmin"
-              element={
-                <RequireRole allowedRoles={['super_admin']}>
-                  <SuperAdminHub />
-                </RequireRole>
-              }
-            />
+            <Route path="superadmin" element={<Navigate to="/ila-admin" replace />} />
             <Route path="access-denied" element={<AccessDeniedView />} />
             <Route index element={<Navigate to="/app/frontdesk" replace />} />
           </Route>

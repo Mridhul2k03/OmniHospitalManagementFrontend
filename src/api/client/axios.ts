@@ -153,3 +153,30 @@ apiClient.interceptors.response.use(
   }
 )
 
+/**
+ * Tenant Context Management Helpers (Recipe D from Multi-Tenant SaaS Blueprint)
+ */
+export const getActiveTenantId = (): string | null => {
+  return localStorage.getItem('omni_active_tenant_id') || localStorage.getItem('omni_active_tenant_slug')
+}
+
+export const setActiveTenantId = (tenantId: string, slug?: string): void => {
+  localStorage.setItem('omni_active_tenant_id', tenantId)
+  if (slug) {
+    localStorage.setItem('omni_active_tenant_slug', slug)
+  }
+}
+
+export const clearActiveTenantId = (): void => {
+  localStorage.removeItem('omni_active_tenant_id')
+  localStorage.removeItem('omni_active_tenant_slug')
+}
+
+// Attach helper methods directly to apiClient for Recipe D ergonomics
+Object.assign(apiClient, {
+  getActiveTenantId,
+  setActiveTenantId,
+  clearActiveTenantId,
+})
+
+

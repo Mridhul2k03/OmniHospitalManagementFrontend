@@ -268,7 +268,7 @@ export const RegisterView: React.FC = () => {
         </button>
       </form>
 
-      <div className="text-center pt-2 border-t border-border/60">
+      <div className="text-center pt-2 border-t border-border/60 space-y-1.5">
         <p className="text-xs text-muted-foreground">
           Already have an existing property organization?{' '}
           <Link
@@ -276,6 +276,15 @@ export const RegisterView: React.FC = () => {
             className="font-bold text-amber-500 hover:text-amber-400 hover:underline transition-colors"
           >
             Sign in here
+          </Link>
+        </p>
+        <p className="text-xs text-muted-foreground">
+          System Administrator?{' '}
+          <Link
+            to="/auth/admin-login"
+            className="font-bold text-amber-500 hover:text-amber-400 hover:underline transition-colors"
+          >
+            Access Admin Console
           </Link>
         </p>
       </div>

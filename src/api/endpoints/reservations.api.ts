@@ -141,4 +141,10 @@ export const reservationsApi = {
     )
     return response.data
   },
+
+  // Cancel reservation
+  cancelReservation: async (id: string, reason?: string): Promise<{ success: boolean; message: string; status: string }> => {
+    const response = await apiClient.post<any>(`/reservations/${id}/cancel/`, { reason })
+    return response.data
+  },
 }

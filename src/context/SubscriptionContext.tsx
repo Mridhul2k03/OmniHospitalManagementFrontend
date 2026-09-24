@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { SubscriptionTier, SubscriptionPlanDetails } from '@/types'
 import { useToast } from '@/components/ui/toast'
 import { apiClient } from '@/api/client/axios'
+import { useAuth } from '@/auth/useAuth'
 
 export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlanDetails> = {
   starter: {
@@ -60,7 +61,6 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlanDetail
       'cloakroom',
       'hr',
       'loyalty',
-      'students',
     ],
     features: [
       'Up to 5 Properties (Up to 500 Rooms)',
@@ -100,7 +100,6 @@ export const SUBSCRIPTION_PLANS: Record<SubscriptionTier, SubscriptionPlanDetail
       'cloakroom',
       'hr',
       'loyalty',
-      'students',
       'pricing',
       'channels',
       'corporate',
@@ -135,12 +134,16 @@ export interface SubscriptionContextType {
   openUpgradeModal: (featureName?: string, requiredPlan?: SubscriptionTier) => void
   closeUpgradeModal: () => void
   upgradeModalContext: { featureName: string; requiredPlan: SubscriptionTier } | null
+  isSuperAdmin: boolean
+  isOwner: boolean
 }
 
 export const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined)
 
 export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { success } = useToast()
+  const { user, activeTenant } = useAuth()
+  const isSuperAdmin = Boolean(user?.role?.toLowerCase() === 'super_admin' || user?.permissions?.includes('*'))
 
   const [currentPlan, setCurrentPlan] = useState<SubscriptionTier>(() => {
     const saved = localStorage.getItem('hms_subscription_plan') as SubscriptionTier
@@ -150,18 +153,31 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
     return 'enterprise' // Default to enterprise initially for full demo richness
   })
 
+  // Synchronize plan with active tenant's subscription tier
+  useEffect(() => {
+    if (activeTenant?.subscription_tier) {
+      const tier = activeTenant.subscription_tier.toLowerCase() as SubscriptionTier
+      if (SUBSCRIPTION_PLANS[tier]) {
+        setCurrentPlan(tier)
+      }
+    }
+  }, [activeTenant?.subscription_tier])
+
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
   const [upgradeModalContext, setUpgradeModalContext] = useState<{
     featureName: string
     requiredPlan: SubscriptionTier
   } | null>(null)
 
+  // Platform Owners (Super Admins) have 100% unrestricted access to all modules and features.
+  // Plans strictly apply to tenant institutions and their users.
   const isFeatureAllowed = useCallback(
     (minPlan?: SubscriptionTier): boolean => {
+      if (isSuperAdmin) return true
       if (!minPlan) return true
       return TIER_HIERARCHY[currentPlan] >= TIER_HIERARCHY[minPlan]
     },
-    [currentPlan]
+    [isSuperAdmin, currentPlan]
   )
 
   const upgradePlan = useCallback(
@@ -180,7 +196,7 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
       success(
         'Subscription Plan Updated',
-        `Your organization has been switched to the ${SUBSCRIPTION_PLANS[newPlan].name} plan.`
+        `Tenant organization plan updated to ${SUBSCRIPTION_PLANS[newPlan].name}.`
       )
       setIsUpgradeModalOpen(false)
     },
@@ -189,10 +205,12 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const openUpgradeModal = useCallback(
     (featureName: string = 'Premium Feature', requiredPlan: SubscriptionTier = 'professional') => {
+      // Platform owners are never prompted to upgrade their own plan
+      if (isSuperAdmin) return
       setUpgradeModalContext({ featureName, requiredPlan })
       setIsUpgradeModalOpen(true)
     },
-    []
+    [isSuperAdmin]
   )
 
   const closeUpgradeModal = useCallback(() => {
@@ -211,6 +229,8 @@ export const SubscriptionProvider: React.FC<{ children: React.ReactNode }> = ({ 
         openUpgradeModal,
         closeUpgradeModal,
         upgradeModalContext,
+        isSuperAdmin,
+        isOwner: isSuperAdmin,
       }}
     >
       {children}

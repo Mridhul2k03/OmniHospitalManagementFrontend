@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTenant } from '@/context/useTenant'
 import { useAuth } from '@/auth/useAuth'
-import { educationalApi } from '@/api/endpoints/educational.api'
 import { AppNotificationItem, UserRole } from '@/types'
 import {
   Building2,
@@ -20,32 +19,32 @@ import {
   ShieldCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useSubscription, SUBSCRIPTION_PLANS } from '@/context/SubscriptionContext'
+import { useSubscription } from '@/context/SubscriptionContext'
 
 const ALL_TEST_ROLES: { role: UserRole; label: string }[] = [
-  { role: 'super_admin', label: 'Super Admin / Institution Admin' },
+  { role: 'super_admin', label: 'Super Admin / Platform Owner' },
   { role: 'president', label: 'President (Corporate)' },
   { role: 'ceo', label: 'CEO (Corporate)' },
-  { role: 'property_manager', label: 'Property Manager / Faculty' },
-  { role: 'front_desk', label: 'Front Desk / Admissions' },
+  { role: 'property_manager', label: 'Property Manager (Operations)' },
+  { role: 'front_desk', label: 'Front Desk Agent' },
   { role: 'housekeeping', label: 'Housekeeping Lead' },
   { role: 'chef_kitchen', label: 'Executive Chef (KOT)' },
   { role: 'restaurant_pos', label: 'F&B POS Captain' },
   { role: 'security_gate', label: 'Gate Security' },
   { role: 'transport', label: 'Fleet & Transport' },
   { role: 'shareholder', label: 'Shareholder (Read-Only)' },
-  { role: 'guest', label: 'Student / Guest Portal' },
+  { role: 'guest', label: 'Guest Portal' },
 ]
 
 export const Topbar: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSidebar }) => {
   const navigate = useNavigate()
   const { activeProperty, propertiesList, setActivePropertyById } = useTenant()
   const { user, activeTenant, accessibleTenants, switchTenant, switchRole, logout } = useAuth()
-  const { currentPlan, upgradePlan } = useSubscription()
+  const { currentPlan } = useSubscription()
+  const isSuperAdmin = user?.role?.toLowerCase() === 'super_admin' || user?.permissions?.includes('*')
   
   const [showPropertyMenu, setShowPropertyMenu] = useState(false)
   const [showRoleMenu, setShowRoleMenu] = useState(false)
-  const [showPlanMenu, setShowPlanMenu] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [isWsConnected] = useState(true)
 
@@ -53,47 +52,25 @@ export const Topbar: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
   const [notifications, setNotifications] = useState<AppNotificationItem[]>([
     {
       id: 'notif-001',
-      title: 'Welcome to OmniEducationalManagement',
-      message: 'Active institutional tenant: Oxford Crest University. Session secured with HttpOnly cookies.',
+      title: 'Welcome to Grand Horizon HMOS',
+      message: 'Active hotel tenant: Grand Horizon Hospitality Group. High-security session active.',
       is_read: false,
       created_at: new Date().toISOString(),
     },
     {
       id: 'notif-002',
-      title: 'Semester Registration Deadline',
-      message: 'Course add/drop period is open until Friday, October 2nd.',
+      title: 'High Occupancy Alert',
+      message: 'Turnover queue has 4 pending departure cleanings scheduled for afternoon arrival.',
       is_read: false,
       created_at: new Date(Date.now() - 3600000).toISOString(),
     },
   ])
 
-  useEffect(() => {
-    let isMounted = true
-    educationalApi
-      .getNotifications()
-      .then((data) => {
-        if (isMounted && Array.isArray(data) && data.length > 0) {
-          setNotifications(data)
-        }
-      })
-      .catch(() => {
-        // Fallback to local initial notifications
-      })
-    return () => {
-      isMounted = false
-    }
-  }, [])
-
   const handleMarkAllRead = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
   }
 
-  const handleMarkRead = async (id: string) => {
-    try {
-      await educationalApi.markNotificationRead(id)
-    } catch {
-      // client update
-    }
+  const handleMarkRead = (id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
     )
@@ -205,7 +182,7 @@ export const Topbar: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <input
             type="text"
-            placeholder="Quick search (ID, Student, Room, Folio)..."
+            placeholder="Quick search (Room #, Guest, Folio, Order)..."
             className="w-full rounded-lg border border-border bg-background/80 py-1.5 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </div>
@@ -266,76 +243,40 @@ export const Topbar: React.FC<{ onToggleSidebar?: () => void }> = ({ onToggleSid
           )}
         </div>
 
-        {/* Superadmin Console Quick Access Button */}
-        {(user?.role?.toLowerCase() === 'super_admin' || user?.permissions?.includes('*')) && (
+        {/* Platform Owner Console / Tenant Subscription Indicator */}
+        {isSuperAdmin ? (
           <button
             type="button"
             onClick={() => navigate('/app/superadmin')}
-            className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-gradient-to-r from-amber-500/15 to-amber-600/15 px-2.5 py-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 transition-all shadow-xs cursor-pointer"
-            title="Open Platform Superadmin Control Center"
+            className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-gradient-to-r from-amber-500/15 to-amber-600/15 px-3 py-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-500/25 transition-all shadow-xs cursor-pointer"
+            title="SaaS Platform Owner Console"
           >
-            <ShieldCheck className="h-3.5 w-3.5 text-amber-500" />
-            <span className="hidden sm:inline">Admin Console</span>
+            <ShieldCheck className="h-4 w-4 text-amber-500" />
+            <span className="hidden sm:inline">Platform Owner</span>
+            <span className="rounded bg-amber-500/20 px-1 py-0.2 text-[9px] font-black uppercase text-amber-600 dark:text-amber-400">
+              Root
+            </span>
           </button>
+        ) : (
+          /* Tenant Subscription Tier Badge for Tenant Users */
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => navigate('/app/settings')}
+              className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors cursor-pointer ${
+                currentPlan === 'enterprise'
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
+                  : currentPlan === 'professional'
+                  ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20'
+                  : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
+              }`}
+              title="View Tenant Organization Subscription Plan"
+            >
+              <Crown className="h-3.5 w-3.5" />
+              <span className="uppercase tracking-wider">{currentPlan} Plan</span>
+            </button>
+          </div>
         )}
-
-        {/* Subscription Plan Selector */}
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => setShowPlanMenu(!showPlanMenu)}
-            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors cursor-pointer ${
-              currentPlan === 'enterprise'
-                ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20'
-                : currentPlan === 'professional'
-                ? 'border-indigo-500/40 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/20'
-                : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20'
-            }`}
-          >
-            <Crown className="h-3.5 w-3.5" />
-            <span className="uppercase tracking-wider">{currentPlan}</span>
-            <ChevronDown className="h-3 w-3" />
-          </button>
-
-          {showPlanMenu && (
-            <div className="absolute right-0 mt-2 w-60 rounded-xl border border-border bg-card p-1.5 shadow-xl animate-in fade-in zoom-in-95 z-50">
-              <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                Simulate Subscription Plan
-              </div>
-              {(['starter', 'professional', 'enterprise'] as const).map((tier) => {
-                const plan = SUBSCRIPTION_PLANS[tier]
-                return (
-                  <button
-                    key={tier}
-                    onClick={() => {
-                      upgradePlan(tier)
-                      setShowPlanMenu(false)
-                    }}
-                    className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition-colors ${
-                      currentPlan === tier
-                        ? 'bg-primary text-primary-foreground font-semibold'
-                        : 'hover:bg-muted text-foreground'
-                    }`}
-                  >
-                    <div>
-                      <div className="font-semibold">{plan.name}</div>
-                      <div
-                        className={`text-[10px] ${
-                          currentPlan === tier ? 'text-primary-foreground/80' : 'text-muted-foreground'
-                        }`}
-                      >
-                        ${plan.monthlyPrice}/mo • {plan.maxProperties === 999 ? 'Unlimited' : plan.maxProperties} Prop
-                      </div>
-                    </div>
-                    {currentPlan === tier && (
-                      <span className="text-[10px] uppercase font-bold tracking-wider">Active</span>
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          )}
-        </div>
 
         {/* Notifications Popover */}
         <div className="relative">

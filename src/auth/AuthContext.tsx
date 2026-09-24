@@ -52,31 +52,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!isMounted) return
 
         if (meData && meData.user) {
-          const eduUser = meData.user
+          const authUser = meData.user
           const activeT =
             meData.active_tenant ||
             meData.accessible_tenants?.[0] || {
               id: '7d18388a-872b-4d2b-b42a-f658c03e9e60',
-              name: 'Oxford Crest University',
-              slug: 'oxford-crest',
+              name: 'Grand Horizon Hospitality Group',
+              slug: 'ghhg',
             }
 
-          const defaultRole: UserRole = eduUser.is_staff ? 'super_admin' : 'property_manager'
-          const rawRole = (eduUser.role || defaultRole).toLowerCase()
-          const isSuper = eduUser.is_superuser || (eduUser.is_staff && rawRole === 'super_admin') || rawRole === 'super_admin'
+          const defaultRole: UserRole = authUser.is_staff ? 'super_admin' : 'property_manager'
+          const rawRole = (authUser.role || defaultRole).toLowerCase()
+          const isSuper = authUser.is_superuser || (authUser.is_staff && rawRole === 'super_admin') || rawRole === 'super_admin'
           const finalRole: UserRole = isSuper ? 'super_admin' : (rawRole as UserRole)
 
           const authenticatedUser: AuthenticatedUser = {
-            id: eduUser.id,
-            email: eduUser.email,
-            firstName: eduUser.first_name || eduUser.full_name?.split(' ')[0] || 'User',
-            lastName: eduUser.last_name || eduUser.full_name?.split(' ').slice(1).join(' ') || '',
+            id: authUser.id,
+            email: authUser.email,
+            firstName: authUser.first_name || authUser.full_name?.split(' ')[0] || 'User',
+            lastName: authUser.last_name || authUser.full_name?.split(' ').slice(1).join(' ') || '',
             role: finalRole,
             organizationId: activeT.id,
             organizationName: activeT.name,
             propertyIds: meData.accessible_tenants?.map((t: InstitutionTenant) => t.id) || [activeT.id],
             assignedPropertyId: activeT.id,
-            permissions: isSuper ? ['*'] : (meData.permissions || ['property:manage', 'students:view']),
+            permissions: isSuper ? ['*'] : (meData.permissions || ['property:manage', 'rooms:manage', 'frontoffice:view']),
           }
 
           setUser(authenticatedUser)
@@ -98,8 +98,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(parsed)
             const defaultTenant: InstitutionTenant = {
               id: parsed.organizationId || '7d18388a-872b-4d2b-b42a-f658c03e9e60',
-              name: parsed.organizationName || 'Oxford Crest University',
-              slug: 'oxford-crest',
+              name: parsed.organizationName || 'Grand Horizon Hospitality Group',
+              slug: 'ghhg',
             }
             setActiveTenant(defaultTenant)
             setAccessibleTenants([defaultTenant])
@@ -166,7 +166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const email = typeof params === 'string' ? params : params.email
       const password = typeof params === 'string' ? 'Password123!' : params.password || 'Password123!'
       const requestedRole = typeof params === 'string' ? legacyRole : params.role
-      const tenantSlug = typeof params === 'object' && params.tenantId ? params.tenantId : 'oxford-crest'
+      const tenantSlug = typeof params === 'object' && params.tenantId ? params.tenantId : 'ghhg'
 
       if (tenantSlug) {
         localStorage.setItem('omni_active_tenant_slug', tenantSlug)
@@ -178,12 +178,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const loginData = await authApi.login({ email, password })
 
         if (loginData && loginData.user) {
-          const eduUser = loginData.user
+          const authUser = loginData.user
           const activeT =
             loginData.active_tenant ||
             loginData.accessible_tenants?.[0] || {
               id: '7d18388a-872b-4d2b-b42a-f658c03e9e60',
-              name: 'Oxford Crest University',
+              name: 'Grand Horizon Hospitality Group',
               slug: tenantSlug,
             }
 
@@ -196,22 +196,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             localStorage.setItem('hms_access_token', loginData.access)
           }
 
-          const defaultRole: UserRole = eduUser.is_staff ? 'super_admin' : 'property_manager'
-          const rawRole = (eduUser.role || defaultRole).toLowerCase()
-          const isSuper = eduUser.is_superuser || (eduUser.is_staff && rawRole === 'super_admin') || rawRole === 'super_admin'
+          const defaultRole: UserRole = authUser.is_staff ? 'super_admin' : 'property_manager'
+          const rawRole = (authUser.role || defaultRole).toLowerCase()
+          const isSuper = authUser.is_superuser || (authUser.is_staff && rawRole === 'super_admin') || rawRole === 'super_admin'
           const finalRole: UserRole = (requestedRole ? requestedRole.toLowerCase() : (isSuper ? 'super_admin' : rawRole)) as UserRole
 
           const resolvedUser: AuthenticatedUser = {
-            id: eduUser.id,
-            email: eduUser.email,
-            firstName: eduUser.first_name || eduUser.full_name?.split(' ')[0] || 'User',
-            lastName: eduUser.last_name || eduUser.full_name?.split(' ').slice(1).join(' ') || '',
+            id: authUser.id,
+            email: authUser.email,
+            firstName: authUser.first_name || authUser.full_name?.split(' ')[0] || 'User',
+            lastName: authUser.last_name || authUser.full_name?.split(' ').slice(1).join(' ') || '',
             role: finalRole,
             organizationId: activeT.id,
             organizationName: activeT.name,
             propertyIds: loginData.accessible_tenants?.map((t: InstitutionTenant) => t.id) || [activeT.id],
             assignedPropertyId: activeT.id,
-            permissions: isSuper ? ['*'] : (eduUser.permissions || ['property:manage', 'students:view']),
+            permissions: isSuper ? ['*'] : (authUser.permissions || ['property:manage', 'rooms:manage', 'frontoffice:view']),
           }
 
           setUser(resolvedUser)

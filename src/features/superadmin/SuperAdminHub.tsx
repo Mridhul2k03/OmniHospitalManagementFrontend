@@ -45,7 +45,6 @@ import {
   PieChart,
   FileSpreadsheet,
   Boxes,
-  GraduationCap,
   Award,
   Sliders,
   ChevronRight,
@@ -53,8 +52,9 @@ import {
 } from 'lucide-react'
 import { superAdminApi, CreateClientPayload, CreateUserPayload } from '@/api/endpoints/superadmin.api'
 import { ClientOrganization, PlatformUser, SubscriptionTier, UserRole } from '@/types'
-import { SUBSCRIPTION_PLANS, useSubscription } from '@/context/SubscriptionContext'
+import { SUBSCRIPTION_PLANS } from '@/context/SubscriptionContext'
 import { useAuth } from '@/auth/useAuth'
+import { HotelSelectionsManager } from '@/features/admin/HotelSelectionsManager'
 
 // Product Module definition for the Product Access & Entitlements Engine
 interface ProductModule {
@@ -110,17 +110,6 @@ const PRODUCT_MODULES: ProductModule[] = [
     allowedRoles: ['super_admin', 'org_admin', 'front_desk', 'guest'],
     icon: UserCheck,
     badge: 'Live',
-  },
-  {
-    id: 'students',
-    name: 'Students & Admissions',
-    category: 'Front Office',
-    path: '/app/students',
-    description: 'Campus accommodation, student rosters, academic calendar synchronization.',
-    minPlan: 'professional',
-    allowedRoles: ['super_admin', 'org_admin', 'front_desk'],
-    icon: GraduationCap,
-    badge: 'API',
   },
   {
     id: 'housekeeping',
@@ -321,9 +310,9 @@ const PRODUCT_MODULES: ProductModule[] = [
 export const SuperAdminHub: React.FC = () => {
   const navigate = useNavigate()
   const { user, switchRole } = useAuth()
-  const { currentPlan, upgradePlan } = useSubscription()
+  // As SaaS Platform Owners, Super Admins have unrestricted root access across all modules without personal subscription plans
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'clients' | 'users' | 'products' | 'health'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'clients' | 'users' | 'products' | 'health' | 'selections'>('overview')
   const [clients, setClients] = useState<ClientOrganization[]>([])
   const [users, setUsers] = useState<PlatformUser[]>([])
   const [loading, setLoading] = useState<boolean>(true)
@@ -588,6 +577,16 @@ export const SuperAdminHub: React.FC = () => {
     }
   }
 
+  const handleAccessWorkspace = (client: ClientOrganization) => {
+    localStorage.setItem('omni_active_tenant_id', client.id)
+    localStorage.setItem('omni_active_tenant_slug', client.code)
+    localStorage.setItem('hms_active_org_id', client.id)
+    notify(`Switched tenant workspace to ${client.name} (${client.code})`, 'success')
+    setTimeout(() => {
+      navigate('/app/frontdesk')
+    }, 300)
+  }
+
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newClient.name || !newClient.code || !newClient.contact_email) {
@@ -785,20 +784,20 @@ export const SuperAdminHub: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/60 pb-6">
         <div>
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-amber-600 via-amber-500 to-yellow-400 text-white shadow-lg shadow-amber-500/25">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-amber-500 text-white shadow-lg shadow-purple-600/25">
               <ShieldCheck className="h-6 w-6" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-black tracking-tight text-foreground">
-                  Superadmin Control Center
+                  ILA SaaS • Platform Command HQ
                 </h1>
-                <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[11px] font-bold text-amber-500 uppercase tracking-wide">
-                  Platform Root
+                <span className="rounded-full bg-purple-500/15 border border-purple-500/30 px-2.5 py-0.5 text-[11px] font-bold text-purple-400 uppercase tracking-wide">
+                  ILA Platform Owner • Root Authority
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Centralized multi-tenant client provisioning, global user accounts management, and product access governance.
+                Centralized ILA Multi-Tenant Controller • Provisioning software segments, tenant subscription licensing, global users & infrastructure probes.
               </p>
             </div>
           </div>
@@ -818,7 +817,7 @@ export const SuperAdminHub: React.FC = () => {
             className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white px-3.5 py-2 text-xs font-bold shadow-md shadow-amber-600/20 transition-all cursor-pointer"
           >
             <Building2 className="h-3.5 w-3.5" />
-            + Onboard Client
+            + Onboard Hotel Tenant
           </button>
           <button
             onClick={() => setShowCreateUserModal(true)}
@@ -944,7 +943,7 @@ export const SuperAdminHub: React.FC = () => {
           }`}
         >
           <Building2 className="h-4 w-4" />
-          Client Organizations ({clients.length})
+          Hotel Tenants & Subscriptions ({clients.length})
         </button>
         <button
           onClick={() => setActiveTab('users')}
@@ -966,7 +965,7 @@ export const SuperAdminHub: React.FC = () => {
           }`}
         >
           <Layers className="h-4 w-4" />
-          Product Access & Entitlements ({PRODUCT_MODULES.length})
+          Tenant Tier Entitlements ({PRODUCT_MODULES.length})
         </button>
         <button
           onClick={() => setActiveTab('health')}
@@ -978,6 +977,17 @@ export const SuperAdminHub: React.FC = () => {
         >
           <Cpu className="h-4 w-4" />
           System & Telemetry
+        </button>
+        <button
+          onClick={() => setActiveTab('selections')}
+          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
+            activeTab === 'selections'
+              ? 'border-amber-500 text-amber-500'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Sliders className="h-4 w-4" />
+          Hotel Options & Master Selections
         </button>
       </div>
 
@@ -992,10 +1002,10 @@ export const SuperAdminHub: React.FC = () => {
               <div>
                 <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <ShieldCheck className="h-5 w-5 text-amber-500" />
-                  Administrator Command Center
+                  SaaS Platform Owner Master Console
                 </h2>
                 <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
-                  You are operating with root authority over all multi-tenant hotel client accounts, RBAC roles, product entitlements, and operational endpoints.
+                  This is our platform command section. As the software owners, we have complete, unrestricted access across all operational modules. Subscription plans (Starter, Professional, Enterprise) are configured here to manage our hotel client tenants and their licenses.
                 </p>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -1063,6 +1073,14 @@ export const SuperAdminHub: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleAccessWorkspace(c)}
+                        className="flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-bold text-amber-500 hover:bg-amber-500/20 cursor-pointer transition-all"
+                        title="Access Tenant Workspace"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        <span>Access</span>
+                      </button>
                       <span
                         className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
                           c.subscription_tier.toLowerCase() === 'enterprise'
@@ -1153,10 +1171,29 @@ export const SuperAdminHub: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 2: CLIENT ORGANIZATIONS */}
+      {/* TAB 2: HOTEL TENANTS & SUBSCRIPTIONS SETUP */}
       {/* ========================================================================= */}
       {activeTab === 'clients' && (
         <div className="space-y-4">
+          <div className="rounded-2xl border border-border/60 bg-gradient-to-r from-card via-card/80 to-muted/20 p-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-amber-500" />
+                Hotel Tenants & Subscription Setup
+              </h3>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Onboard new hotel clients, provision their database scope, assign their subscription plan tier, and manage tenant operational status.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowCreateClientModal(true)}
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 text-white px-4 py-2 text-xs font-bold shadow-md cursor-pointer whitespace-nowrap self-start sm:self-auto"
+            >
+              <Building2 className="h-4 w-4" />
+              + Onboard Hotel Tenant
+            </button>
+          </div>
+
           {/* Controls Bar */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="relative flex-1 max-w-md">
@@ -1317,6 +1354,14 @@ export const SuperAdminHub: React.FC = () => {
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleAccessWorkspace(client)}
+                                className="flex items-center gap-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-bold text-amber-500 hover:bg-amber-500/20 cursor-pointer transition-all"
+                                title="Access Workspace (Impersonation / Cross-Tenant Switch)"
+                              >
+                                <ExternalLink className="h-3.5 w-3.5" />
+                                <span>Access Workspace</span>
+                              </button>
                               <button
                                 onClick={() => handleOpenEditClient(client)}
                                 className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer"
@@ -1586,10 +1631,10 @@ export const SuperAdminHub: React.FC = () => {
               <div>
                 <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
                   <Layers className="h-5 w-5 text-amber-500" />
-                  Product Catalog & Role Entitlements Matrix
+                  Tenant Subscription Tiers & Operational Entitlements Matrix
                 </h2>
                 <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
-                  Super administrators can audit, configure, and simulate all 24 operational modules. Ensure users in every department have seamless access to their assigned operational tools.
+                  As Platform Owners, we have root clearance over all 24 modules. This matrix defines what features and modules are granted to each Tenant Subscription Tier (Starter, Professional, Enterprise) and role.
                 </p>
               </div>
 
@@ -1901,6 +1946,15 @@ export const SuperAdminHub: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
+      {/* TAB 6: HOTEL OPTIONS & MASTER SELECTIONS */}
+      {/* ========================================================================= */}
+      {activeTab === 'selections' && (
+        <div className="space-y-6">
+          <HotelSelectionsManager />
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MODAL: ONBOARD CLIENT ORGANIZATION */}
       {/* ========================================================================= */}
       {showCreateClientModal && (
@@ -1909,7 +1963,7 @@ export const SuperAdminHub: React.FC = () => {
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <Building2 className="h-5 w-5 text-amber-500" />
-                <h3 className="text-base font-bold text-foreground">Onboard New Client Hotel Organization</h3>
+                <h3 className="text-base font-bold text-foreground">Onboard & Setup Hotel Tenant</h3>
               </div>
               <button
                 onClick={() => setShowCreateClientModal(false)}

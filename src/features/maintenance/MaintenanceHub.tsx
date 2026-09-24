@@ -20,50 +20,116 @@ export const MaintenanceHub: React.FC = () => {
 
   // Fetch live tickets from backend
   React.useEffect(() => {
-    maintenanceApi.getTickets().then(setTickets).catch((err) => {
-      console.warn('Backend maintenance tickets unreachable:', err)
-    })
+    maintenanceApi
+      .getTickets()
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const normalized = data.map((t: any) => ({
+            id: t.id,
+            code: t.code || `MNT-${String(t.id).replace(/\D/g, '') || Math.floor(100 + Math.random() * 900)}`,
+            propertyId: t.propertyId || t.property || 'prop-001',
+            category: t.category || 'HVAC / AC',
+            location: t.location || t.area || (t.roomNumber ? `Room ${t.roomNumber}` : 'Main Facility'),
+            title: t.title || 'General Maintenance',
+            description: t.description || '',
+            priority: (t.priority === 'critical' ? 'urgent' : t.priority || 'medium') as any,
+            status: (t.status === 'open' ? 'reported' : t.status === 'completed' ? 'resolved' : t.status || 'reported') as MaintenanceStatus,
+            reportedBy: t.reportedBy || 'Engineering Dispatch',
+            assignedTechnician: t.assignedTechnician || 'Vikram Patel',
+            createdAt: t.createdAt ? t.createdAt.slice(0, 16).replace('T', ' ') : new Date().toISOString().slice(0, 16).replace('T', ' '),
+            slaHours: t.slaHours || (t.priority === 'critical' || t.priority === 'urgent' ? 4 : 12),
+            isOverdue: false,
+            estimatedCost: t.estimatedCost || 0,
+          }))
+          setTickets(normalized)
+        }
+      })
+      .catch((err) => {
+        console.warn('Backend maintenance tickets unreachable:', err)
+      })
   }, [])
 
-  const handleCreateTicket = (e: React.FormEvent) => {
+  const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault()
-    const newTkt: MaintenanceTicket = {
-      id: `m-${Date.now()}`,
-      code: `MNT-${Math.floor(100 + Math.random() * 900)}`,
+    const catMap: Record<string, 'plumbing' | 'electrical' | 'hvac' | 'carpentry' | 'appliance' | 'general'> = {
+      'HVAC / AC': 'hvac',
+      'Plumbing': 'plumbing',
+      'Electrical': 'electrical',
+      'Carpentry': 'carpentry',
+    }
+    const apiCategory = catMap[newCategory] || 'general'
+    const payload = {
       propertyId: 'prop-001',
-      category: newCategory,
+      area: newLocation,
       location: newLocation,
       title: newTitle,
       description: 'Logged via Engineering Dispatch Board',
       priority: newPriority,
-      status: 'reported',
+      category: apiCategory,
+      code: `MNT-${Math.floor(100 + Math.random() * 900)}`,
+      status: 'reported' as MaintenanceStatus,
       reportedBy: 'Engineering Dispatch',
       createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
       slaHours: newPriority === 'urgent' ? 4 : 12,
       isOverdue: false,
       estimatedCost: 0,
     }
-    setTickets([newTkt, ...tickets])
-    success('Work Order Logged', `Ticket ${newTkt.code} dispatched to Engineering Team.`)
+
+    try {
+      const res: any = await maintenanceApi.createTicket(payload as any)
+      const createdTkt: MaintenanceTicket = {
+        id: res.id || `m-${Date.now()}`,
+        code: res.code || payload.code,
+        propertyId: res.propertyId || payload.propertyId,
+        category: newCategory,
+        location: res.location || res.area || payload.location,
+        title: res.title || payload.title,
+        description: res.description || payload.description,
+        priority: payload.priority,
+        status: 'reported',
+        reportedBy: payload.reportedBy,
+        createdAt: payload.createdAt,
+        slaHours: payload.slaHours,
+        isOverdue: false,
+        estimatedCost: 0,
+      }
+      setTickets((prev) => [createdTkt, ...prev])
+      success('Work Order Logged & Dispatched', `Ticket ${createdTkt.code} recorded in backend.`)
+    } catch {
+      const fallback: MaintenanceTicket = {
+        id: `m-${Date.now()}`,
+        ...payload,
+        category: newCategory,
+      } as MaintenanceTicket
+      setTickets((prev) => [fallback, ...prev])
+      success('Work Order Logged', `Ticket ${fallback.code} dispatched to Engineering Team.`)
+    }
+
     setIsNewTicketOpen(false)
     setNewTitle('')
     setNewLocation('')
   }
 
-  const handleAdvanceStatus = (ticketId: string) => {
+  const handleAdvanceStatus = async (ticketId: string) => {
+    const target = tickets.find((t) => t.id === ticketId)
+    if (!target) return
+    let next: MaintenanceStatus = target.status
+    if (target.status === 'reported') next = 'assigned'
+    else if (target.status === 'assigned') next = 'in_progress'
+    else if (target.status === 'in_progress') next = 'resolved'
+    else if (target.status === 'resolved') next = 'verified'
+    else if (target.status === 'verified') next = 'closed'
+
     setTickets((prev) =>
-      prev.map((t) => {
-        if (t.id !== ticketId) return t
-        let next: MaintenanceStatus = t.status
-        if (t.status === 'reported') next = 'assigned'
-        else if (t.status === 'assigned') next = 'in_progress'
-        else if (t.status === 'in_progress') next = 'resolved'
-        else if (t.status === 'resolved') next = 'verified'
-        else if (t.status === 'verified') next = 'closed'
-        return { ...t, status: next }
-      })
+      prev.map((t) => (t.id === ticketId ? { ...t, status: next } : t))
     )
-    success('Ticket State Advanced', 'Updated maintenance state machine.')
+    success('Ticket State Advanced', `Work order moved to ${next.replace('_', ' ').toUpperCase()}`)
+
+    try {
+      await maintenanceApi.updateTicketStatus(ticketId, next)
+    } catch (err) {
+      console.warn('Backend update ticket status sync note:', err)
+    }
   }
 
   return (

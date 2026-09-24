@@ -36,4 +36,21 @@ describe('Tenant & Multi-Property Isolation Engine', () => {
     expect(roomsKey1[1]).toBe(prop1)
     expect(roomsKey2[1]).toBe(prop2)
   })
+
+  it('manages active tenant context via Recipe D helpers and injects X-Tenant-ID', () => {
+    // 1. Set active tenant
+    ;(apiClient as any).setActiveTenantId('tenant-uuid-456', 'grand-alpine')
+    expect((apiClient as any).getActiveTenantId()).toBe('tenant-uuid-456')
+
+    // 2. Verify X-Tenant-ID injected into headers
+    const dummyConfig = { headers: {} as Record<string, string> }
+    const interceptor = (apiClient.interceptors.request as any).handlers[0].fulfilled
+    const resultConfig = interceptor(dummyConfig)
+
+    expect(resultConfig.headers['X-Tenant-ID']).toBe('grand-alpine')
+
+    // 3. Clear active tenant
+    ;(apiClient as any).clearActiveTenantId()
+    expect((apiClient as any).getActiveTenantId()).toBeNull()
+  })
 })

@@ -10,7 +10,6 @@ export * from './transport.api'
 export * from './shareholder.api'
 export * from './executive.api'
 export * from './auth.api'
-export * from './educational.api'
 export * from './superadmin.api'
 export * from './operations.api'
 
@@ -19,8 +18,6 @@ export const QUERY_KEYS = {
   authMe: ['auth', 'me'] as const,
   tenants: ['auth', 'tenants'] as const,
   currentTenant: ['auth', 'currentTenant'] as const,
-  students: (filters?: Record<string, unknown>) => ['students', filters] as const,
-  student: (id: string) => ['students', id] as const,
   staff: (filters?: Record<string, unknown>) => ['staff', filters] as const,
   invoices: (filters?: Record<string, unknown>) => ['finance', 'invoices', filters] as const,
   announcements: ['communications', 'announcements'] as const,

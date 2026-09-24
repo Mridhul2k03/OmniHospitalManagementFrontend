@@ -10,6 +10,18 @@ export const housekeepingApi = {
     return response.data
   },
 
+  // Create new housekeeping turnover task
+  createTask: async (data: Partial<HousekeepingTask> & Record<string, any>): Promise<HousekeepingTask> => {
+    const response = await apiClient.post<HousekeepingTask>('/housekeeping/tasks/', data)
+    return response.data
+  },
+
+  // Update housekeeping task generic
+  updateTask: async (taskId: string, data: Partial<HousekeepingTask> & Record<string, any>): Promise<HousekeepingTask> => {
+    const response = await apiClient.patch<HousekeepingTask>(`/housekeeping/tasks/${taskId}/`, data)
+    return response.data
+  },
+
   // Update housekeeping task status
   updateTaskStatus: async (
     taskId: string,

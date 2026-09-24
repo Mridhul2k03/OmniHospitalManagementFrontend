@@ -37,11 +37,47 @@ export const diningApi = {
     return response.data
   },
 
+  // Create a new dining table (Admin operation)
+  createTable: async (data: Partial<DiningTable>): Promise<DiningTable> => {
+    const response = await apiClient.post<DiningTable>('/dining/tables/', data)
+    return response.data
+  },
+
+  // Update dining table details (Admin operation)
+  updateTable: async (tableId: string, data: Partial<DiningTable>): Promise<DiningTable> => {
+    const response = await apiClient.patch<DiningTable>(`/dining/tables/${tableId}/`, data)
+    return response.data
+  },
+
+  // Delete dining table (Admin operation)
+  deleteTable: async (tableId: string): Promise<{ message: string }> => {
+    const response = await apiClient.delete<{ message: string }>(`/dining/tables/${tableId}/`)
+    return response.data
+  },
+
   // Fetch food and beverage digital menu catalog
   getMenuItems: async (category?: string): Promise<MenuItem[]> => {
     const response = await apiClient.get<MenuItem[]>('/dining/menu-items/', {
       params: category ? { category } : undefined,
     })
+    return response.data
+  },
+
+  // Create a new menu item (Admin operation)
+  createMenuItem: async (data: Partial<MenuItem>): Promise<MenuItem> => {
+    const response = await apiClient.post<MenuItem>('/dining/menu-items/', data)
+    return response.data
+  },
+
+  // Update a menu item (Admin operation)
+  updateMenuItem: async (itemId: string, data: Partial<MenuItem>): Promise<MenuItem> => {
+    const response = await apiClient.patch<MenuItem>(`/dining/menu-items/${itemId}/`, data)
+    return response.data
+  },
+
+  // Delete a menu item (Admin operation)
+  deleteMenuItem: async (itemId: string): Promise<{ message: string }> => {
+    const response = await apiClient.delete<{ message: string }>(`/dining/menu-items/${itemId}/`)
     return response.data
   },
 
