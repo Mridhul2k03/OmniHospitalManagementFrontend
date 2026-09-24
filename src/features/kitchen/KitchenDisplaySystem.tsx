@@ -1,91 +1,99 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
+import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
+import { useAuth } from '@/auth/useAuth'
 import { KitchenOrderTicket, KOTStatus } from '@/types'
+import { kotApi } from '@/api/endpoints/kot.api'
 import {
   Flame,
   Clock,
   CheckCircle,
   ChevronRight,
+  Plus,
+  RefreshCw,
 } from 'lucide-react'
 
-const INITIAL_KOT_TICKETS: KitchenOrderTicket[] = [
-  {
-    id: 'kot-101',
-    ticketNumber: 'KOT-4081',
-    outletName: 'The Palm Court Fine Dining',
-    orderType: 'dine_in',
-    tableNumber: 'Table T-04',
-    serverName: 'Captain Rios',
-    status: 'new',
-    priority: 'rush',
-    createdAt: '20:41',
-    elapsedMinutes: 4,
-    items: [
-      { id: 'i-1', menuItemName: 'Charred Prime Wagyu Ribeye 12oz', quantity: 2, notes: 'Medium Rare, Truffle Butter on side', station: 'Grill', status: 'pending' },
-      { id: 'i-2', menuItemName: 'Heirloom Tomato & Burrata Salad', quantity: 1, notes: 'No balsamic glaze', station: 'Salad', status: 'pending' },
-      { id: 'i-3', menuItemName: 'Truffle Parmesan Fries', quantity: 2, station: 'Sauté', status: 'pending' },
-    ],
-  },
-  {
-    id: 'kot-102',
-    ticketNumber: 'KOT-4082',
-    outletName: 'In-Room Private Dining',
-    orderType: 'room_service',
-    roomNumber: 'Room 501 (Penthouse)',
-    serverName: 'Server Clara',
-    status: 'preparing',
-    priority: 'vip',
-    createdAt: '20:30',
-    elapsedMinutes: 15,
-    items: [
-      { id: 'i-4', menuItemName: 'Pan-Seared Chilean Sea Bass', quantity: 1, notes: 'Asparagus risotto', station: 'Sauté', status: 'preparing' },
-      { id: 'i-5', menuItemName: 'Lobster Bisque Royale', quantity: 1, notes: 'Extra croutons', station: 'Sauté', status: 'preparing' },
-      { id: 'i-6', menuItemName: 'Dom Pérignon 2013 Chilled', quantity: 1, station: 'Bar', status: 'ready' },
-    ],
-  },
-  {
-    id: 'kot-103',
-    ticketNumber: 'KOT-4078',
-    outletName: 'The Palm Court Fine Dining',
-    orderType: 'dine_in',
-    tableNumber: 'Table T-12 (Terrace)',
-    serverName: 'Captain Rios',
-    status: 'preparing',
-    priority: 'normal',
-    createdAt: '20:25',
-    elapsedMinutes: 21,
-    items: [
-      { id: 'i-7', menuItemName: 'Wild Mushroom Risotto', quantity: 2, notes: 'Gluten-free', station: 'Sauté', status: 'preparing' },
-      { id: 'i-8', menuItemName: 'Crispy Calamari Fritti', quantity: 1, station: 'Grill', status: 'ready' },
-    ],
-  },
-  {
-    id: 'kot-104',
-    ticketNumber: 'KOT-4075',
-    outletName: 'The Palm Court Fine Dining',
-    orderType: 'dine_in',
-    tableNumber: 'Table T-02',
-    serverName: 'Server Liam',
-    status: 'ready',
-    priority: 'normal',
-    createdAt: '20:18',
-    elapsedMinutes: 28,
-    items: [
-      { id: 'i-9', menuItemName: 'Molten Valrhona Chocolate Fondant', quantity: 2, station: 'Dessert' as any, status: 'ready' },
-      { id: 'i-10', menuItemName: 'Espresso Double Shot', quantity: 2, station: 'Bar', status: 'ready' },
-    ],
-  },
-]
-
 export const KitchenDisplaySystem: React.FC = () => {
-  const { success, warning } = useToast()
-  const [tickets, setTickets] = useState<KitchenOrderTicket[]>(INITIAL_KOT_TICKETS)
+  const { success, warning, error: toastError } = useToast()
+  const { hasRole, user } = useAuth()
+  const [tickets, setTickets] = useState<KitchenOrderTicket[]>([])
   const [stationFilter, setStationFilter] = useState<'All' | 'Grill' | 'Sauté' | 'Salad' | 'Bar'>('All')
   const [cancelTicket, setCancelTicket] = useState<KitchenOrderTicket | null>(null)
+  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [isNewTicketOpen, setIsNewTicketOpen] = useState(false)
 
-  // Simulation timer incrementing elapsed time
+  // New manual ticket form state
+  const [newTable, setNewTable] = useState('Table T-01')
+  const [newStation, setNewStation] = useState<'Grill' | 'Sauté' | 'Salad' | 'Bar'>('Grill')
+  const [newPriority, setNewPriority] = useState<'normal' | 'rush' | 'vip'>('rush')
+  const [newDishName, setNewDishName] = useState('Charred Prime Wagyu Ribeye 12oz')
+  const [newQuantity, setNewQuantity] = useState(1)
+  const [newNotes, setNewNotes] = useState('Urgent VIP - Medium Rare')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const canManageKitchen = hasRole([
+    'super_admin',
+    'org_admin',
+    'property_manager',
+    'chef_kitchen',
+    'restaurant_pos',
+    'operations_director',
+  ])
+
+  // Normalize order from backend format to KitchenOrderTicket
+  const normalizeOrder = (raw: any): KitchenOrderTicket => {
+    const rawItems = Array.isArray(raw.items) ? raw.items : []
+    const createdDate = raw.createdAt ? new Date(raw.createdAt) : new Date()
+    const elapsedMinutes = Math.max(
+      1,
+      Math.round((Date.now() - createdDate.getTime()) / 60000)
+    )
+
+    return {
+      id: raw.id || `kot-${Math.random().toString(36).substring(2, 7)}`,
+      ticketNumber: raw.ticketNumber || raw.ticket_number || `KOT-${Math.floor(1000 + Math.random() * 9000)}`,
+      outletName: raw.outletName || 'The Palm Court Fine Dining',
+      orderType: (raw.orderType || 'dine_in') as KitchenOrderTicket['orderType'],
+      tableNumber: raw.tableNumber ? (raw.tableNumber.startsWith('Table') ? raw.tableNumber : `Table ${raw.tableNumber}`) : (raw.roomNumber ? `Room ${raw.roomNumber}` : 'Table T-01'),
+      roomNumber: raw.roomNumber,
+      serverName: raw.serverName || 'Captain Rios',
+      status: (raw.status || 'new').toLowerCase() as KOTStatus,
+      priority: (raw.priority || 'normal') as KitchenOrderTicket['priority'],
+      createdAt: createdDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      elapsedMinutes: isNaN(elapsedMinutes) ? 5 : elapsedMinutes,
+      items: rawItems.map((item: any, idx: number) => ({
+        id: item.id || `item-${idx + 1}`,
+        menuItemName: item.name || item.menuItemName || 'Special Culinary Item',
+        quantity: Number(item.quantity) || 1,
+        notes: item.specialInstructions || item.notes || '',
+        station: (item.station || raw.station || 'Grill') as any,
+        status: (item.status || 'pending') as any,
+      })),
+    }
+  }
+
+  // Load orders from backend
+  const loadOrders = useCallback(async () => {
+    setIsLoading(true)
+    try {
+      const data = await kotApi.getOrders()
+      if (Array.isArray(data) && data.length > 0) {
+        setTickets(data.map(normalizeOrder))
+      }
+    } catch (err) {
+      console.warn('Backend KOT orders unreachable, keeping local tickets:', err)
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    loadOrders()
+  }, [loadOrders])
+
+  // Simulation timer incrementing elapsed time every minute
   useEffect(() => {
     const timer = setInterval(() => {
       setTickets((prev) =>
@@ -96,42 +104,85 @@ export const KitchenDisplaySystem: React.FC = () => {
   }, [])
 
   // Progressive state bump following authoritative DRF state machine
-  const handleBumpStatus = (ticketId: string) => {
+  const handleBumpStatus = async (ticketId: string) => {
+    const target = tickets.find((t) => t.id === ticketId)
+    if (!target) return
+
+    let nextStatus: KOTStatus = target.status
+    if (target.status === 'new') nextStatus = 'accepted'
+    else if (target.status === 'accepted') nextStatus = 'preparing'
+    else if (target.status === 'preparing') nextStatus = 'ready'
+    else if (target.status === 'ready') nextStatus = 'served'
+
     setTickets((prev) =>
-      prev.map((t) => {
-        if (t.id !== ticketId) return t
-
-        let nextStatus: KOTStatus = t.status
-        if (t.status === 'new') nextStatus = 'accepted'
-        else if (t.status === 'accepted') nextStatus = 'preparing'
-        else if (t.status === 'preparing') nextStatus = 'ready'
-        else if (t.status === 'ready') nextStatus = 'served'
-
-        return { ...t, status: nextStatus }
-      })
+      prev.map((t) => (t.id === ticketId ? { ...t, status: nextStatus } : t))
     )
 
-    const target = tickets.find((t) => t.id === ticketId)
-    if (target) {
-      success(`Ticket ${target.ticketNumber} Advanced`, `Station updated status transition to next phase.`)
+    try {
+      await kotApi.updateOrderStatus(ticketId, nextStatus)
+    } catch (err) {
+      console.warn('Backend KOT status update warning:', err)
     }
+
+    success(`Ticket ${target.ticketNumber} Advanced`, `Status updated to ${nextStatus.toUpperCase()}.`)
   }
 
   // Handle Void / Cancel Ticket
-  const handleConfirmCancel = (reason?: string) => {
+  const handleConfirmCancel = async (reason?: string) => {
     if (!cancelTicket) return
+    const cancelReason = reason || 'Chef recall'
     setTickets((prev) =>
       prev.map((t) => (t.id === cancelTicket.id ? { ...t, status: 'cancelled' } : t))
     )
-    warning(`KOT ${cancelTicket.ticketNumber} Cancelled`, `Reason: "${reason || 'Chef recall'}"`)
+
+    try {
+      await kotApi.cancelOrder(cancelTicket.id, cancelReason)
+    } catch (err) {
+      console.warn('Backend KOT cancellation warning:', err)
+    }
+
+    warning(`KOT ${cancelTicket.ticketNumber} Cancelled`, `Reason: "${cancelReason}"`)
     setCancelTicket(null)
+  }
+
+  // Handle Create Manual Rush Ticket (Admin / Chef operation)
+  const handleCreateRushTicket = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    try {
+      const payload = {
+        tableNumber: newTable,
+        station: newStation.toLowerCase(),
+        serverName: user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Executive Chef',
+        guestCount: 2,
+        priority: newPriority,
+        items: [
+          {
+            name: newDishName,
+            quantity: newQuantity,
+            specialInstructions: newNotes,
+          },
+        ],
+      }
+      const created = await kotApi.createOrder(payload)
+      const normalized = normalizeOrder(created)
+      setTickets((prev) => [normalized, ...prev])
+      success('Rush Ticket Dispatched', `KOT ${normalized.ticketNumber} fired to ${newStation} Station.`)
+      setIsNewTicketOpen(false)
+      setNewDishName('')
+      setNewNotes('')
+    } catch (err) {
+      toastError('Ticket Creation Failed', 'Could not dispatch KOT to server.')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Filter active tickets
   const activeTickets = tickets.filter((t) => {
     if (t.status === 'served' || t.status === 'cancelled') return false
     if (stationFilter === 'All') return true
-    return t.items.some((i) => i.station === stationFilter)
+    return t.items.some((i) => i.station.toLowerCase() === stationFilter.toLowerCase())
   })
 
   return (
@@ -157,19 +208,42 @@ export const KitchenDisplaySystem: React.FC = () => {
           ))}
         </div>
 
-        <div className="flex items-center gap-3 text-xs text-slate-400">
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            &lt;10m Normal
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-amber-500" />
-            10-20m Warning
-          </span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-rose-500" />
-            &gt;20m Delayed
-          </span>
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:flex items-center gap-3 text-xs text-slate-400 mr-2">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              &lt;10m Normal
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-amber-500" />
+              10-20m Warning
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-rose-500" />
+              &gt;20m Delayed
+            </span>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadOrders}
+            className="border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800 gap-1.5"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            Sync
+          </Button>
+
+          {canManageKitchen && (
+            <Button
+              size="sm"
+              onClick={() => setIsNewTicketOpen(true)}
+              className="bg-rose-600 hover:bg-rose-700 text-white gap-1.5 font-semibold"
+            >
+              <Plus className="h-4 w-4" />
+              Manual KOT
+            </Button>
+          )}
         </div>
       </div>
 
@@ -183,7 +257,7 @@ export const KitchenDisplaySystem: React.FC = () => {
           </div>
         ) : (
           activeTickets.map((ticket) => {
-            const isUrgent = ticket.elapsedMinutes > 20 || ticket.priority === 'rush'
+            const isUrgent = ticket.elapsedMinutes > 20 || ticket.priority === 'rush' || ticket.priority === 'vip'
             const elapsedColor =
               ticket.elapsedMinutes > 20
                 ? 'text-rose-400 bg-rose-950/60 border-rose-800'
@@ -205,7 +279,7 @@ export const KitchenDisplaySystem: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-base font-black text-white">{ticket.ticketNumber}</span>
                         {ticket.priority !== 'normal' && (
-                          <span className="rounded-sm bg-rose-600 px-1.5 py-0.2 text-[9px] font-black uppercase text-white tracking-widest animate-pulse">
+                          <span className="rounded-sm bg-rose-600 px-1.5 py-0.5 text-[9px] font-black uppercase text-white tracking-widest animate-pulse">
                             {ticket.priority}
                           </span>
                         )}
@@ -242,7 +316,7 @@ export const KitchenDisplaySystem: React.FC = () => {
                               ⚠️ {item.notes}
                             </p>
                           )}
-                          <span className="inline-block mt-1 text-[10px] font-mono uppercase tracking-wider text-slate-400 bg-slate-800/80 rounded px-1.5 py-0.2">
+                          <span className="inline-block mt-1 text-[10px] font-mono uppercase tracking-wider text-slate-400 bg-slate-800/80 rounded px-1.5 py-0.5">
                             {item.station} Station
                           </span>
                         </div>
@@ -289,6 +363,105 @@ export const KitchenDisplaySystem: React.FC = () => {
           })
         )}
       </div>
+
+      {/* Manual Urgent KOT Creator Modal */}
+      <Modal
+        isOpen={isNewTicketOpen}
+        onClose={() => setIsNewTicketOpen(false)}
+        title="Dispatch Manual Kitchen Order (KOT)"
+        description="Fire priority ticket directly to culinary kitchen station queue"
+        maxWidth="md"
+      >
+        <form onSubmit={handleCreateRushTicket} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">Destination Table / Room</label>
+              <input
+                type="text"
+                value={newTable}
+                onChange={(e) => setNewTable(e.target.value)}
+                required
+                placeholder="Table T-03 or Room 501"
+                className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">Station</label>
+              <select
+                value={newStation}
+                onChange={(e) => setNewStation(e.target.value as any)}
+                className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              >
+                <option value="Grill">Grill Station</option>
+                <option value="Sauté">Sauté Station</option>
+                <option value="Salad">Salad / Pantry</option>
+                <option value="Bar">Bar / Beverage</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">Priority Level</label>
+              <select
+                value={newPriority}
+                onChange={(e) => setNewPriority(e.target.value as any)}
+                className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              >
+                <option value="rush">🔥 Rush (Priority Fast-Track)</option>
+                <option value="vip">⭐ VIP Guest Order</option>
+                <option value="normal">Standard Order</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">Quantity</label>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={newQuantity}
+                onChange={(e) => setNewQuantity(parseInt(e.target.value) || 1)}
+                required
+                className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">Dish Description / Menu Item</label>
+            <input
+              type="text"
+              value={newDishName}
+              onChange={(e) => setNewDishName(e.target.value)}
+              required
+              placeholder="e.g. Pan-Seared Chilean Sea Bass"
+              className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">Chef Special Instructions</label>
+            <input
+              type="text"
+              value={newNotes}
+              onChange={(e) => setNewNotes(e.target.value)}
+              placeholder="e.g. Allergy warning: No shellfish, sauce on side"
+              className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3 border-t border-border">
+            <Button variant="outline" size="sm" type="button" onClick={() => setIsNewTicketOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" type="submit" isLoading={isSubmitting} className="bg-rose-600 hover:bg-rose-700 text-white">
+              Fire Ticket to Kitchen
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Void KOT Confirmation Dialog */}
       <ConfirmationDialog

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
@@ -6,27 +6,41 @@ import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 import { GateVisitorLog } from '@/types'
+import { securityApi } from '@/api/endpoints'
 import { Plus, LogOut } from 'lucide-react'
 
-const MOCK_GATE_LOGS: GateVisitorLog[] = [
-  { id: 'g-1', propertyId: 'prop-001', visitorName: 'Robert Langdon (Uber Chauffeur)', purpose: 'Guest', hostOrDestination: 'Lord Crawford (Room 501)', entryTime: '20:15', badgeNumber: 'VIS-9021', vehiclePlate: 'NY-KLT-4921', status: 'inside' },
-  { id: 'g-2', propertyId: 'prop-001', visitorName: 'Metro Produce Logistics', purpose: 'Vendor / Delivery', hostOrDestination: 'Main Kitchen Loading Bay', entryTime: '19:40', exitTime: '20:10', badgeNumber: 'VND-3012', vehiclePlate: 'NJ-TRK-8819', status: 'exited' },
-  { id: 'g-3', propertyId: 'prop-001', visitorName: 'David K. (Elevator Service Tech)', purpose: 'Contractor', hostOrDestination: 'Engineering Basement', entryTime: '18:30', badgeNumber: 'CON-1102', vehiclePlate: 'NY-VAN-2201', status: 'inside' },
-]
-
 export const SecurityGateHub: React.FC = () => {
-  const { success } = useToast()
-  const [logs, setLogs] = useState<GateVisitorLog[]>(MOCK_GATE_LOGS)
+  const { success, error } = useToast()
+  const [logs, setLogs] = useState<GateVisitorLog[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [isEntryModalOpen, setIsEntryModalOpen] = useState(false)
   const [name, setName] = useState('')
   const [plate, setPlate] = useState('')
   const [dest, setDest] = useState('')
   const [purpose, setPurpose] = useState<'Guest' | 'Vendor / Delivery' | 'Contractor'>('Guest')
 
-  const handleRegisterEntry = (e: React.FormEvent) => {
+  useEffect(() => {
+    let mounted = true
+    setIsLoading(true)
+    securityApi
+      .getGateLogs()
+      .then((data) => {
+        if (mounted) setLogs(data)
+      })
+      .catch((err) => {
+        console.warn('Failed to load gate logs:', err)
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false)
+      })
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const handleRegisterEntry = async (e: React.FormEvent) => {
     e.preventDefault()
-    const newLog: GateVisitorLog = {
-      id: `g-${Date.now()}`,
+    const newLogData: Partial<GateVisitorLog> = {
       propertyId: 'prop-001',
       visitorName: name,
       purpose,
@@ -36,23 +50,28 @@ export const SecurityGateHub: React.FC = () => {
       vehiclePlate: plate || undefined,
       status: 'inside',
     }
-    setLogs([newLog, ...logs])
-    success('Visitor Pass Issued', `Badge ${newLog.badgeNumber} granted to ${name}. Barrier opened.`)
-    setIsEntryModalOpen(false)
-    setName('')
-    setPlate('')
-    setDest('')
+
+    try {
+      const created = await securityApi.registerEntry(newLogData)
+      setLogs((prev) => [created, ...prev])
+      success('Visitor Pass Issued', `Badge ${created.badgeNumber} granted to ${name}. Barrier opened.`)
+      setIsEntryModalOpen(false)
+      setName('')
+      setPlate('')
+      setDest('')
+    } catch (err) {
+      error('Registration Failed', 'Unable to record visitor entry.')
+    }
   }
 
-  const handleLogExit = (id: string) => {
-    setLogs((prev) =>
-      prev.map((l) =>
-        l.id === id
-          ? { ...l, status: 'exited', exitTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }
-          : l
-      )
-    )
-    success('Exit Verified & Logged', 'Visitor pass surrendered. Barrier opened for exit.')
+  const handleLogExit = async (id: string) => {
+    try {
+      const updated = await securityApi.logExit(id)
+      setLogs((prev) => prev.map((l) => (l.id === id ? updated : l)))
+      success('Exit Verified & Logged', 'Visitor pass surrendered. Barrier opened for exit.')
+    } catch (err) {
+      error('Exit Log Failed', 'Unable to record visitor exit.')
+    }
   }
 
   return (
@@ -92,36 +111,44 @@ export const SecurityGateHub: React.FC = () => {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {logs.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell className="font-mono font-bold text-xs text-primary">{log.badgeNumber}</TableCell>
-                  <TableCell className="font-semibold text-xs text-foreground">{log.visitorName}</TableCell>
-                  <TableCell>
-                    <Badge variant={log.purpose === 'Vendor / Delivery' ? 'warning' : 'info'}>{log.purpose}</Badge>
-                  </TableCell>
-                  <TableCell className="font-mono text-xs">{log.vehiclePlate || 'Pedestrian'}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{log.hostOrDestination}</TableCell>
-                  <TableCell className="text-xs font-mono">{log.entryTime}</TableCell>
-                  <TableCell>
-                    <Badge variant={log.status === 'inside' ? 'success' : 'neutral'}>
-                      {log.status === 'inside' ? 'On-Premises' : 'Exited'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {log.status === 'inside' && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => handleLogExit(log.id)}
-                      >
-                        <LogOut className="h-3 w-3 mr-1" />
-                        Log Exit
-                      </Button>
-                    )}
+              {logs.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground text-xs">
+                    {isLoading ? 'Loading visitor logs...' : 'No visitor or gate activity recorded.'}
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                logs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="font-mono font-bold text-xs text-primary">{log.badgeNumber}</TableCell>
+                    <TableCell className="font-semibold text-xs text-foreground">{log.visitorName}</TableCell>
+                    <TableCell>
+                      <Badge variant={log.purpose === 'Vendor / Delivery' ? 'warning' : 'info'}>{log.purpose}</Badge>
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{log.vehiclePlate || 'Pedestrian'}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{log.hostOrDestination}</TableCell>
+                    <TableCell className="text-xs font-mono">{log.entryTime}</TableCell>
+                    <TableCell>
+                      <Badge variant={log.status === 'inside' ? 'success' : 'neutral'}>
+                        {log.status === 'inside' ? 'On-Premises' : 'Exited'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {log.status === 'inside' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          onClick={() => handleLogExit(log.id)}
+                        >
+                          <LogOut className="h-3 w-3 mr-1" />
+                          Log Exit
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
             </TableBody>
           </Table>
         </CardContent>

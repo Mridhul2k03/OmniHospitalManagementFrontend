@@ -77,7 +77,9 @@ export const DEMO_PROPERTIES: Property[] = [
   },
 ]
 
-interface TenantContextType {
+import { propertiesApi } from '@/api/endpoints/properties.api'
+
+export interface TenantContextType {
   activeOrg: Organization
   activeProperty: Property
   propertiesList: Property[]
@@ -89,13 +91,57 @@ export const TenantContext = createContext<TenantContextType | undefined>(undefi
 export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const queryClient = useQueryClient()
   const [activeOrg] = useState<Organization>(DEMO_ORGANIZATION)
-  const [propertiesList] = useState<Property[]>(DEMO_PROPERTIES)
+  const [propertiesList, setPropertiesList] = useState<Property[]>(DEMO_PROPERTIES)
 
   const [activeProperty, setActiveProperty] = useState<Property>(() => {
     const savedPropId = localStorage.getItem('hms_active_property_id')
     const match = DEMO_PROPERTIES.find((p) => p.id === savedPropId)
     return match || DEMO_PROPERTIES[0]
   })
+
+  // Synchronize live properties from backend
+  useEffect(() => {
+    propertiesApi
+      .getProperties()
+      .then((props) => {
+        const rawList = Array.isArray(props) ? props : ((props as any)?.data || (props as any)?.results || [])
+        if (Array.isArray(rawList) && rawList.length > 0) {
+          const mapped: Property[] = rawList.map((p: any) => ({
+            id: p.id,
+            organizationId: p.organization || 'org-001',
+            name: p.name,
+            code: p.code,
+            type: (p.property_type || 'HOTEL').toLowerCase() as any,
+            address: p.address || '742 Evergreen Promenade',
+            city: p.city || 'New York',
+            state: p.state || 'NY',
+            country: p.country || 'United States',
+            postalCode: p.postal_code || '10001',
+            phone: p.contact_phone || '+1 (212) 555-0199',
+            email: p.contact_email || 'palace@omnihospitality.com',
+            checkInTime: p.check_in_time || '15:00',
+            checkOutTime: p.check_out_time || '11:00',
+            totalRooms: 120,
+            activeRooms: 114,
+            rating: 4.9,
+            bannerImage:
+              'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=80',
+            status: 'active',
+          }))
+          setPropertiesList(mapped)
+          const savedPropId = localStorage.getItem('hms_active_property_id')
+          const found = mapped.find((p) => p.id === savedPropId || p.code?.toLowerCase() === savedPropId?.toLowerCase())
+          if (found) {
+            setActiveProperty(found)
+          } else if (mapped[0]) {
+            setActiveProperty(mapped[0])
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Backend properties endpoint unreachable or offline, using demo properties catalog:', err)
+      })
+  }, [])
 
   useEffect(() => {
     localStorage.setItem('hms_active_org_id', activeOrg.id)

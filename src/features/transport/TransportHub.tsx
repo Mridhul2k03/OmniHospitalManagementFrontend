@@ -6,51 +6,44 @@ import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 import { TransportTrip, TripStatus } from '@/types'
+import { transportApi } from '@/api/endpoints/transport.api'
 import { MapPin, Plus, Hotel, ChevronRight } from 'lucide-react'
-
-const MOCK_TRIPS: TransportTrip[] = [
-  {
-    id: 'tr-1',
-    bookingCode: 'TRIP-901',
-    propertyId: 'prop-001',
-    passengerName: 'Lord Sterling Crawford',
-    passengerPhone: '+44 20 7946 0912',
-    roomNumber: '501',
-    tripType: 'airport_transfer',
-    pickupLocation: 'JFK International Airport (Terminal 4)',
-    dropoffLocation: 'Grand Horizon Palace Hotel',
-    scheduledTime: '2026-09-17 19:30',
-    vehicleType: 'Luxury SUV',
-    driverName: 'Liam O\'Connor',
-    driverPhone: '+1 212 555 0199',
-    vehiclePlate: 'NY-VIP-88',
-    fare: 220,
-    status: 'en_route',
-  },
-  {
-    id: 'tr-2',
-    bookingCode: 'TRIP-902',
-    propertyId: 'prop-001',
-    passengerName: 'Elena Rostova',
-    passengerPhone: '+41 22 555 0192',
-    roomNumber: '304',
-    tripType: 'hourly_chauffeur',
-    pickupLocation: 'Grand Horizon Palace Hotel',
-    dropoffLocation: 'Wall Street Financial District',
-    scheduledTime: '2026-09-17 21:00',
-    vehicleType: 'Sedan',
-    driverName: 'Carlos Mendez',
-    driverPhone: '+1 212 555 0144',
-    vehiclePlate: 'NY-EXE-42',
-    fare: 160,
-    status: 'assigned',
-  },
-]
 
 export const TransportHub: React.FC = () => {
   const { success } = useToast()
-  const [trips, setTrips] = useState<TransportTrip[]>(MOCK_TRIPS)
+  const [trips, setTrips] = useState<TransportTrip[]>([])
   const [isBookOpen, setIsBookOpen] = useState(false)
+
+  // Fetch live trips from backend
+  React.useEffect(() => {
+    transportApi
+      .getTrips()
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const normalized = data.map((tr: any) => ({
+            id: tr.id,
+            bookingCode: tr.bookingCode || `TRIP-${String(tr.id).replace(/\D/g, '') || Math.floor(100 + Math.random() * 900)}`,
+            propertyId: tr.propertyId || 'prop-001',
+            passengerName: tr.passengerName || tr.guestName || 'VIP Guest',
+            passengerPhone: tr.passengerPhone || '+1 (555) 0100',
+            roomNumber: tr.roomNumber || '501',
+            tripType: tr.tripType || 'airport_transfer',
+            pickupLocation: tr.pickupLocation || 'Grand Horizon Palace',
+            dropoffLocation: tr.dropoffLocation || 'JFK International Airport',
+            scheduledTime: tr.scheduledTime || (tr.pickupTime ? tr.pickupTime.slice(0, 16).replace('T', ' ') : '2026-09-22 14:00'),
+            vehicleType: tr.vehicleType || tr.vehicleName || 'Luxury SUV',
+            vehiclePlate: tr.vehiclePlate || 'LUX-8911',
+            driverName: tr.driverName || 'Liam O\'Connor',
+            fare: tr.fare || 180,
+            status: (tr.status || 'requested') as TripStatus,
+          }))
+          setTrips(normalized)
+        }
+      })
+      .catch((err) => {
+        console.warn('Backend transport trips unreachable:', err)
+      })
+  }, [])
 
   // Booking fields
   const [pName, setPName] = useState('')
@@ -60,43 +53,84 @@ export const TransportHub: React.FC = () => {
   const [pVehicle, setPVehicle] = useState<'Sedan' | 'Luxury SUV' | 'Van' | 'Executive Coach'>('Luxury SUV')
   const [pFare, setPFare] = useState('180')
 
-  const handleBookTrip = (e: React.FormEvent) => {
+  const handleBookTrip = async (e: React.FormEvent) => {
     e.preventDefault()
-    const newTrip: TransportTrip = {
-      id: `tr-${Date.now()}`,
+    const payload = {
       bookingCode: `TRIP-${Math.floor(100 + Math.random() * 900)}`,
       propertyId: 'prop-001',
+      guestName: pName,
       passengerName: pName,
       passengerPhone: '+1 555 0100',
       roomNumber: pRoom,
       tripType: 'airport_transfer',
       pickupLocation: pPickup,
       dropoffLocation: pDrop,
-      scheduledTime: '2026-09-17 22:00',
+      pickupTime: '2026-09-22 18:00',
+      scheduledTime: '2026-09-22 18:00',
+      passengerCount: 1,
+      vehicleTypeRequested: pVehicle,
       vehicleType: pVehicle,
+      driverName: 'Liam O\'Connor',
       fare: parseFloat(pFare) || 150,
-      status: 'requested',
+      status: 'requested' as TripStatus,
     }
-    setTrips([...trips, newTrip])
-    success('Transport Dispatch Scheduled', `Transfer ${newTrip.bookingCode} registered for ${pName}.`)
+
+    try {
+      const res: any = await transportApi.createTrip(payload as any)
+      const createdTrip: TransportTrip = {
+        id: res.id || `tr-${Date.now()}`,
+        bookingCode: res.bookingCode || payload.bookingCode,
+        propertyId: payload.propertyId,
+        passengerName: res.passengerName || res.guestName || payload.passengerName,
+        passengerPhone: payload.passengerPhone,
+        roomNumber: payload.roomNumber,
+        tripType: 'airport_transfer',
+        pickupLocation: res.pickupLocation || payload.pickupLocation,
+        dropoffLocation: res.dropoffLocation || payload.dropoffLocation,
+        scheduledTime: res.scheduledTime || res.pickupTime || payload.scheduledTime,
+        vehicleType: payload.vehicleType,
+        driverName: res.driverName || payload.driverName,
+        fare: res.fare || payload.fare,
+        status: 'requested',
+      }
+      setTrips((prev) => [createdTrip, ...prev])
+      success('Transport Dispatch Scheduled', `Transfer ${createdTrip.bookingCode} registered for ${pName}.`)
+    } catch {
+      const fallback: TransportTrip = {
+        id: `tr-${Date.now()}`,
+        ...payload,
+      } as TransportTrip
+      setTrips((prev) => [...prev, fallback])
+      success('Transport Dispatch Scheduled', `Transfer ${fallback.bookingCode} registered for ${pName}.`)
+    }
+
     setIsBookOpen(false)
+    setPName('')
+    setPPickup('')
+    setPDrop('')
   }
 
-  const handleAdvanceTrip = (tripId: string) => {
+  const handleAdvanceTrip = async (tripId: string) => {
+    const target = trips.find((t) => t.id === tripId)
+    if (!target) return
+    let next: TripStatus = target.status
+    if (target.status === 'requested') next = 'assigned'
+    else if (target.status === 'assigned') next = 'en_route'
+    else if (target.status === 'en_route') next = 'arrived'
+    else if (target.status === 'arrived') next = 'picked_up'
+    else if (target.status === 'picked_up') next = 'completed'
+    else if (target.status === 'completed') next = 'billed'
+
     setTrips((prev) =>
-      prev.map((t) => {
-        if (t.id !== tripId) return t
-        let next: TripStatus = t.status
-        if (t.status === 'requested') next = 'assigned'
-        else if (t.status === 'assigned') next = 'en_route'
-        else if (t.status === 'en_route') next = 'arrived'
-        else if (t.status === 'arrived') next = 'picked_up'
-        else if (t.status === 'picked_up') next = 'completed'
-        else if (t.status === 'completed') next = 'billed'
-        return { ...t, status: next }
-      })
+      prev.map((t) => (t.id === tripId ? { ...t, status: next } : t))
     )
-    success('Trip Status Progressed', 'Status updated along authoritative dispatch lifecycle.')
+    success('Trip Status Progressed', `Transfer updated to ${next.replace(/_/g, ' ').toUpperCase()}.`)
+
+    try {
+      await transportApi.updateTripStatus(tripId, next)
+    } catch (err) {
+      console.warn('Backend transport status sync error:', err)
+    }
   }
 
   return (

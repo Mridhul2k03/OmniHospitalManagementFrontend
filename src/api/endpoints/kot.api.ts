@@ -27,4 +27,17 @@ export const kotApi = {
     )
     return response.data
   },
+
+  // Create / dispatch manual KOT order directly to kitchen
+  createOrder: async (payload: {
+    tableNumber?: string
+    station?: string
+    serverName?: string
+    guestCount?: number
+    priority?: string
+    items: Array<{ menuItemId?: string; name: string; quantity: number; specialInstructions?: string }>
+  }): Promise<KOTOrder> => {
+    const response = await apiClient.post<KOTOrder>('/dining/kot/', payload)
+    return response.data
+  },
 }

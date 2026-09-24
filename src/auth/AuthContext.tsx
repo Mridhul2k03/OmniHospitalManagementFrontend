@@ -1,227 +1,7 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react'
 import { AuthenticatedUser, AuthTokens, UserRole, InstitutionTenant } from '@/types'
 import { wsManager } from '@/api/client/websocket'
-import { authApi } from '@/api/endpoints/auth.api'
-
-// Default Demo Profiles for Pair Programming & Testing Every Role
-export const MOCK_ROLES_CATALOG: Record<UserRole, AuthenticatedUser> = {
-  super_admin: {
-    id: 'user-001',
-    email: 'superadmin@omnihospitality.com',
-    firstName: 'Alexander',
-    lastName: 'Wright',
-    role: 'super_admin',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001', 'prop-002', 'prop-003'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['*'],
-  },
-  org_admin: {
-    id: 'user-002',
-    email: 'orgadmin@omnihospitality.com',
-    firstName: 'Eleanor',
-    lastName: 'Vance',
-    role: 'org_admin',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001', 'prop-002'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['org:manage', 'property:manage', 'finance:view', 'reports:export'],
-  },
-  property_manager: {
-    id: 'user-003',
-    email: 'manager.palace@omnihospitality.com',
-    firstName: 'Marcus',
-    lastName: 'Sterling',
-    role: 'property_manager',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['property:manage', 'rooms:manage', 'staff:manage', 'rates:override'],
-  },
-  front_desk: {
-    id: 'user-004',
-    email: 'frontdesk.palace@omnihospitality.com',
-    firstName: 'Sophia',
-    lastName: 'Chen',
-    role: 'front_desk',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['checkin:operate', 'reservations:manage', 'folio:post', 'rooms:assign'],
-  },
-  housekeeping: {
-    id: 'user-005',
-    email: 'housekeeping.lead@omnihospitality.com',
-    firstName: 'Maria',
-    lastName: 'Santos',
-    role: 'housekeeping',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['rooms:clean', 'rooms:inspect', 'lostfound:manage'],
-  },
-  restaurant_pos: {
-    id: 'user-006',
-    email: 'fnb.captain@omnihospitality.com',
-    firstName: 'Julian',
-    lastName: 'Rios',
-    role: 'restaurant_pos',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['pos:order', 'pos:bill', 'pos:roomcharge'],
-  },
-  chef_kitchen: {
-    id: 'user-007',
-    email: 'headchef@omnihospitality.com',
-    firstName: 'Antoine',
-    lastName: 'Dubois',
-    role: 'chef_kitchen',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['kot:view', 'kot:transition'],
-  },
-  maintenance: {
-    id: 'user-008',
-    email: 'chiefengineer@omnihospitality.com',
-    firstName: 'Vikram',
-    lastName: 'Patel',
-    role: 'maintenance',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['maintenance:update', 'parts:allocate'],
-  },
-  accountant: {
-    id: 'user-009',
-    email: 'finance.lead@omnihospitality.com',
-    firstName: 'David',
-    lastName: 'Heller',
-    role: 'accountant',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001', 'prop-002'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['finance:audit', 'finance:settle', 'reports:finance'],
-  },
-  hr: {
-    id: 'user-010',
-    email: 'hr.director@omnihospitality.com',
-    firstName: 'Clara',
-    lastName: 'Oswald',
-    role: 'hr',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['hr:manage', 'shifts:manage', 'payroll:view'],
-  },
-  president: {
-    id: 'user-011',
-    email: 'president@omnihospitality.com',
-    firstName: 'Lord Harrison',
-    lastName: 'Blackwood',
-    role: 'president',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001', 'prop-002', 'prop-003'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['executive:view', 'kpis:view', 'reports:export'],
-  },
-  vice_president: {
-    id: 'user-012',
-    email: 'vp.operations@omnihospitality.com',
-    firstName: 'Catherine',
-    lastName: 'DeWitt',
-    role: 'vice_president',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001', 'prop-002'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['executive:view', 'region:view'],
-  },
-  ceo: {
-    id: 'user-013',
-    email: 'ceo@omnihospitality.com',
-    firstName: 'Jonathan',
-    lastName: 'Hale',
-    role: 'ceo',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001', 'prop-002', 'prop-003'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['executive:view', 'financials:view', 'audit:view'],
-  },
-  operations_director: {
-    id: 'user-014',
-    email: 'ops.director@omnihospitality.com',
-    firstName: 'Samantha',
-    lastName: 'Fox',
-    role: 'operations_director',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001', 'prop-002'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['ops:view', 'slas:view', 'rooms:view'],
-  },
-  shareholder: {
-    id: 'user-015',
-    email: 'shareholder.capital@aurumpartners.com',
-    firstName: 'Aurelia',
-    lastName: 'Montague',
-    role: 'shareholder',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001', 'prop-002'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['shareholder:read_only'],
-  },
-  security_gate: {
-    id: 'user-016',
-    email: 'gate.chief@omnihospitality.com',
-    firstName: 'Babatunde',
-    lastName: 'Adeleke',
-    role: 'security_gate',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['security:log', 'gate:manage'],
-  },
-  transport: {
-    id: 'user-017',
-    email: 'fleet.dispatch@omnihospitality.com',
-    firstName: 'Liam',
-    lastName: 'O\'Connor',
-    role: 'transport',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['transport:dispatch', 'fleet:view'],
-  },
-  guest: {
-    id: 'user-018',
-    email: 'guest.traveler@gmail.com',
-    firstName: 'Isabella',
-    lastName: 'Rossi',
-    role: 'guest',
-    organizationId: 'org-001',
-    organizationName: 'Grand Horizon Hospitality Group',
-    propertyIds: ['prop-001'],
-    assignedPropertyId: 'prop-001',
-    permissions: ['guest:book', 'guest:checkin'],
-  },
-}
+import { authApi, RegisterPayload, RegisterResponse } from '@/api/endpoints/auth.api'
 
 export interface LoginParams {
   email: string
@@ -240,6 +20,7 @@ export interface AuthContextType {
   error?: string | null
   clearError?: () => void
   login: (params: LoginParams | string, legacyRole?: UserRole) => Promise<void>
+  register?: (payload: RegisterPayload) => Promise<RegisterResponse>
   logout: () => Promise<void> | void
   switchTenant?: (tenantId: string) => Promise<void>
   switchRole: (role: UserRole) => void
@@ -271,27 +52,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!isMounted) return
 
         if (meData && meData.user) {
-          const eduUser = meData.user
+          const authUser = meData.user
           const activeT =
             meData.active_tenant ||
             meData.accessible_tenants?.[0] || {
               id: '7d18388a-872b-4d2b-b42a-f658c03e9e60',
-              name: 'Oxford Crest University',
-              slug: 'oxford-crest',
+              name: 'Grand Horizon Hospitality Group',
+              slug: 'ghhg',
             }
 
-          const defaultRole: UserRole = eduUser.is_staff ? 'super_admin' : 'property_manager'
+          const defaultRole: UserRole = authUser.is_staff ? 'super_admin' : 'property_manager'
+          const rawRole = (authUser.role || defaultRole).toLowerCase()
+          const isSuper = authUser.is_superuser || (authUser.is_staff && rawRole === 'super_admin') || rawRole === 'super_admin'
+          const finalRole: UserRole = isSuper ? 'super_admin' : (rawRole as UserRole)
+
           const authenticatedUser: AuthenticatedUser = {
-            id: eduUser.id,
-            email: eduUser.email,
-            firstName: eduUser.first_name || eduUser.full_name?.split(' ')[0] || 'User',
-            lastName: eduUser.last_name || eduUser.full_name?.split(' ').slice(1).join(' ') || '',
-            role: (eduUser.role as UserRole) || defaultRole,
+            id: authUser.id,
+            email: authUser.email,
+            firstName: authUser.first_name || authUser.full_name?.split(' ')[0] || 'User',
+            lastName: authUser.last_name || authUser.full_name?.split(' ').slice(1).join(' ') || '',
+            role: finalRole,
             organizationId: activeT.id,
             organizationName: activeT.name,
             propertyIds: meData.accessible_tenants?.map((t: InstitutionTenant) => t.id) || [activeT.id],
             assignedPropertyId: activeT.id,
-            permissions: meData.permissions || (eduUser.is_staff ? ['*'] : ['property:manage', 'students:view']),
+            permissions: isSuper ? ['*'] : (meData.permissions || ['property:manage', 'rooms:manage', 'frontoffice:view']),
           }
 
           setUser(authenticatedUser)
@@ -313,8 +98,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(parsed)
             const defaultTenant: InstitutionTenant = {
               id: parsed.organizationId || '7d18388a-872b-4d2b-b42a-f658c03e9e60',
-              name: parsed.organizationName || 'Oxford Crest University',
-              slug: 'oxford-crest',
+              name: parsed.organizationName || 'Grand Horizon Hospitality Group',
+              slug: 'ghhg',
             }
             setActiveTenant(defaultTenant)
             setAccessibleTenants([defaultTenant])
@@ -381,7 +166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const email = typeof params === 'string' ? params : params.email
       const password = typeof params === 'string' ? 'Password123!' : params.password || 'Password123!'
       const requestedRole = typeof params === 'string' ? legacyRole : params.role
-      const tenantSlug = typeof params === 'object' && params.tenantId ? params.tenantId : 'oxford-crest'
+      const tenantSlug = typeof params === 'object' && params.tenantId ? params.tenantId : 'ghhg'
 
       if (tenantSlug) {
         localStorage.setItem('omni_active_tenant_slug', tenantSlug)
@@ -393,12 +178,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const loginData = await authApi.login({ email, password })
 
         if (loginData && loginData.user) {
-          const eduUser = loginData.user
+          const authUser = loginData.user
           const activeT =
             loginData.active_tenant ||
             loginData.accessible_tenants?.[0] || {
               id: '7d18388a-872b-4d2b-b42a-f658c03e9e60',
-              name: 'Oxford Crest University',
+              name: 'Grand Horizon Hospitality Group',
               slug: tenantSlug,
             }
 
@@ -411,18 +196,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             localStorage.setItem('hms_access_token', loginData.access)
           }
 
-          const defaultRole: UserRole = eduUser.is_staff ? 'super_admin' : 'property_manager'
+          const defaultRole: UserRole = authUser.is_staff ? 'super_admin' : 'property_manager'
+          const rawRole = (authUser.role || defaultRole).toLowerCase()
+          const isSuper = authUser.is_superuser || (authUser.is_staff && rawRole === 'super_admin') || rawRole === 'super_admin'
+          const finalRole: UserRole = (requestedRole ? requestedRole.toLowerCase() : (isSuper ? 'super_admin' : rawRole)) as UserRole
+
           const resolvedUser: AuthenticatedUser = {
-            id: eduUser.id,
-            email: eduUser.email,
-            firstName: eduUser.first_name || eduUser.full_name?.split(' ')[0] || 'User',
-            lastName: eduUser.last_name || eduUser.full_name?.split(' ').slice(1).join(' ') || '',
-            role: requestedRole || (eduUser.role as UserRole) || defaultRole,
+            id: authUser.id,
+            email: authUser.email,
+            firstName: authUser.first_name || authUser.full_name?.split(' ')[0] || 'User',
+            lastName: authUser.last_name || authUser.full_name?.split(' ').slice(1).join(' ') || '',
+            role: finalRole,
             organizationId: activeT.id,
             organizationName: activeT.name,
             propertyIds: loginData.accessible_tenants?.map((t: InstitutionTenant) => t.id) || [activeT.id],
             assignedPropertyId: activeT.id,
-            permissions: eduUser.permissions || (eduUser.is_staff ? ['*'] : ['property:manage', 'students:view']),
+            permissions: isSuper ? ['*'] : (authUser.permissions || ['property:manage', 'rooms:manage', 'frontoffice:view']),
           }
 
           setUser(resolvedUser)
@@ -435,35 +224,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (err: unknown) {
         const apiError = err as { code?: string; message?: string; status?: number }
-        
-        // If credentials failed, display specific error code & message
-        if (apiError.code === 'INVALID_CREDENTIALS' || apiError.status === 400 || apiError.status === 401) {
-          const message = apiError.message || 'Invalid email or password. Please check your credentials.'
-          setError(message)
-          throw new Error(message)
-        }
-
-        // If backend server is unreachable (e.g. offline dev mode), use demo account fallback
-        console.warn('Authoritative login server unreachable. Initializing demo session for exploration:', apiError.message)
-        const mockProfile = MOCK_ROLES_CATALOG[requestedRole || 'property_manager'] || MOCK_ROLES_CATALOG.property_manager
-        const demoUser: AuthenticatedUser = {
-          ...mockProfile,
-          email,
-        }
-        const demoTenant: InstitutionTenant = {
-          id: '7d18388a-872b-4d2b-b42a-f658c03e9e60',
-          name: 'Oxford Crest University',
-          slug: tenantSlug,
-          institution_type: 'university_college',
-          is_default: true,
-        }
-
-        setUser(demoUser)
-        setActiveTenant(demoTenant)
-        setAccessibleTenants([demoTenant])
-        localStorage.setItem('omni_auth_user', JSON.stringify(demoUser))
-        localStorage.setItem('omni_active_tenant_id', demoTenant.id)
-        localStorage.setItem('omni_active_tenant_slug', demoTenant.slug)
+        const message =
+          apiError.message ||
+          (apiError.code === 'INVALID_CREDENTIALS' || apiError.status === 400 || apiError.status === 401
+            ? 'Invalid email or password. Please check your credentials.'
+            : 'Authentication server unreachable. Please verify backend service.')
+        setError(message)
+        throw new Error(message)
       } finally {
         setIsLoading(false)
       }
@@ -517,19 +284,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   )
 
   const switchRole = useCallback((newRole: UserRole) => {
-    const targetUser = MOCK_ROLES_CATALOG[newRole]
-    if (targetUser) {
-      setUser(targetUser)
-      localStorage.setItem('omni_auth_user', JSON.stringify(targetUser))
-    }
+    setUser((prev) => {
+      if (!prev) return null
+      const updated: AuthenticatedUser = {
+        ...prev,
+        role: newRole,
+      }
+      localStorage.setItem('omni_auth_user', JSON.stringify(updated))
+      return updated
+    })
   }, [])
 
   const hasRole = useCallback(
     (roles: UserRole | UserRole[]) => {
       if (!user) return false
-      if (user.role === 'super_admin') return true
-      const roleList = Array.isArray(roles) ? roles : [roles]
-      return roleList.includes(user.role)
+      const currentRole = (user.role || '').toLowerCase()
+      if (currentRole === 'super_admin') return true
+      const roleList = (Array.isArray(roles) ? roles : [roles]).map((r) => r.toLowerCase())
+      return roleList.includes(currentRole)
     },
     [user]
   )
@@ -537,8 +309,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const hasPermission = useCallback(
     (permission: string) => {
       if (!user) return false
-      if (user.role === 'super_admin' || user.permissions.includes('*')) return true
-      return user.permissions.includes(permission)
+      const currentRole = (user.role || '').toLowerCase()
+      if (currentRole === 'super_admin' || user.permissions?.includes('*')) return true
+      return user.permissions?.includes(permission) || false
     },
     [user]
   )
@@ -555,6 +328,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error,
         clearError,
         login,
+        register: authApi.register,
         logout,
         switchTenant,
         switchRole,

@@ -7,6 +7,8 @@ import { ConfirmationDialog } from '@/components/ui/confirmation-dialog'
 import { useToast } from '@/components/ui/toast'
 import { Sliders } from 'lucide-react'
 
+import { roomsApi } from '@/api/endpoints/rooms.api'
+
 interface RateRule {
   id: string
   roomTypeName: string
@@ -31,6 +33,41 @@ export const DynamicPricingHub: React.FC = () => {
   const [selectedRule, setSelectedRule] = useState<RateRule | null>(null)
   const [overrideInput, setOverrideInput] = useState('')
   const [isOverrideOpen, setIsOverrideOpen] = useState(false)
+
+  React.useEffect(() => {
+    roomsApi
+      .getRoomTypes()
+      .then((types) => {
+        if (Array.isArray(types) && types.length > 0) {
+          const generated: RateRule[] = types.map((rt, idx) => {
+            const bands: ('low' | 'normal' | 'high' | 'surge')[] = ['surge', 'high', 'normal', 'low']
+            const band = bands[idx % bands.length]
+            const mult = band === 'surge' ? 1.25 : band === 'high' ? 1.15 : band === 'low' ? 0.9 : 1.0
+            const base = Number(rt.basePrice) || 250
+            return {
+              id: rt.id,
+              roomTypeName: rt.name,
+              baseRate: base,
+              calculatedRate: Math.round(base * mult),
+              demandBand: band,
+              occupancyPace:
+                band === 'surge'
+                  ? '92% Booked (High Velocity)'
+                  : band === 'high'
+                  ? '78% Booked'
+                  : band === 'low'
+                  ? '35% Booked'
+                  : '62% Booked',
+              isManualOverride: false,
+            }
+          })
+          setRules(generated)
+        }
+      })
+      .catch((err) => {
+        console.warn('Backend room types unreachable for pricing:', err)
+      })
+  }, [])
 
   const handleConfirmOverride = (reason?: string) => {
     if (!selectedRule || !overrideInput) return

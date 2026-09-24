@@ -4,6 +4,7 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useToast } from '@/components/ui/toast'
+import { apiClient } from '@/api/client/axios'
 import { Clock } from 'lucide-react'
 
 interface StaffEmployee {
@@ -16,25 +17,47 @@ interface StaffEmployee {
   status: 'on_duty' | 'break' | 'absent' | 'off_duty'
 }
 
-const MOCK_STAFF: StaffEmployee[] = [
-  { id: 'emp-1', name: 'Sophia Chen', department: 'Front Office', role: 'Front Desk Lead', shift: 'Morning (07:00 - 15:30)', clockInTime: '06:54 AM', status: 'on_duty' },
-  { id: 'emp-2', name: 'Maria Santos', department: 'Housekeeping', role: 'Floor Supervisor', shift: 'Morning (07:00 - 15:30)', clockInTime: '06:58 AM', status: 'on_duty' },
-  { id: 'emp-3', name: 'Antoine Dubois', department: 'Culinary & F&B', role: 'Executive Chef', shift: 'Evening (15:00 - 23:30)', clockInTime: '14:45 PM', status: 'on_duty' },
-  { id: 'emp-4', name: 'Vikram Patel', department: 'Engineering', role: 'Chief Engineer', shift: 'Morning (07:00 - 15:30)', clockInTime: '07:10 AM', status: 'on_duty' },
-  { id: 'emp-5', name: 'Babatunde Adeleke', department: 'Security', role: 'Security Supervisor', shift: 'Evening (15:00 - 23:30)', clockInTime: '15:00 PM', status: 'on_duty' },
-]
-
 export const HRHub: React.FC = () => {
   const { success } = useToast()
-  const [staff] = useState<StaffEmployee[]>(MOCK_STAFF)
+  const [staff, setStaff] = useState<StaffEmployee[]>([])
   const [hasClockedIn, setHasClockedIn] = useState(false)
 
-  const handlePunchClock = () => {
-    setHasClockedIn(!hasClockedIn)
-    if (!hasClockedIn) {
-      success('Shift Clock-In Registered', `Digital biometric punch logged at ${new Date().toLocaleTimeString()}`)
+  // Fetch live staff from backend
+  React.useEffect(() => {
+    apiClient.get('/hr/staff/').then((res) => {
+      if (Array.isArray(res.data)) setStaff(res.data)
+    }).catch((err) => {
+      console.warn('Backend HR staff unreachable:', err)
+    })
+  }, [])
+
+  const handlePunchClock = async () => {
+    const nextState = !hasClockedIn
+    setHasClockedIn(nextState)
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    if (nextState) {
+      success('Shift Clock-In Registered', `Digital biometric punch logged at ${timeStr}`)
     } else {
       success('Shift Clock-Out Registered', `Shift hours finalized and transmitted to payroll.`)
+    }
+
+    if (staff.length > 0) {
+      const targetId = staff[0].id
+      setStaff((prev) =>
+        prev.map((s, idx) =>
+          idx === 0
+            ? { ...s, status: nextState ? 'on_duty' : 'off_duty', clockInTime: nextState ? timeStr : undefined }
+            : s
+        )
+      )
+      try {
+        await apiClient.patch(`/hr/staff/${targetId}/`, {
+          status: nextState ? 'on_duty' : 'off_duty',
+          clockInTime: nextState ? timeStr : null,
+        })
+      } catch (err) {
+        console.warn('Backend HR punch sync error:', err)
+      }
     }
   }
 

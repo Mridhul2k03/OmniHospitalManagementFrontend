@@ -6,111 +6,130 @@ import { Badge } from '@/components/ui/badge'
 import { Modal } from '@/components/ui/modal'
 import { useToast } from '@/components/ui/toast'
 import { MaintenanceTicket, MaintenanceStatus } from '@/types'
+import { maintenanceApi } from '@/api/endpoints/maintenance.api'
 import { Clock, Plus } from 'lucide-react'
-
-const MOCK_TICKETS: MaintenanceTicket[] = [
-  {
-    id: 'm-1',
-    code: 'MNT-102',
-    propertyId: 'prop-001',
-    category: 'HVAC / AC',
-    location: 'Room 204 (Ocean Executive)',
-    title: 'AC cooling coil freezing & loud rattling fan vibration',
-    description: 'Guest reported room temperature cannot reach below 24C. Requires replacement fan motor bearing.',
-    priority: 'urgent',
-    status: 'in_progress',
-    reportedBy: 'Front Desk S. Chen',
-    assignedTechnician: 'Vikram Patel (Lead HVAC)',
-    createdAt: '2026-09-17 08:30',
-    slaHours: 4,
-    isOverdue: false,
-    estimatedCost: 180,
-  },
-  {
-    id: 'm-2',
-    code: 'MNT-103',
-    propertyId: 'prop-001',
-    category: 'Plumbing',
-    location: 'Main Lobby Restrooms',
-    title: 'Touchless sensor flush valve continuous water flow',
-    description: 'Sensor failure causing constant water drainage in stall #3.',
-    priority: 'high',
-    status: 'assigned',
-    reportedBy: 'Housekeeping Lead Maria',
-    assignedTechnician: 'Dave Miller (Plumbing)',
-    createdAt: '2026-09-17 09:15',
-    slaHours: 6,
-    isOverdue: false,
-    estimatedCost: 75,
-  },
-  {
-    id: 'm-3',
-    code: 'MNT-100',
-    propertyId: 'prop-001',
-    category: 'Electrical',
-    location: 'Room 301 Suite',
-    title: 'Bedside master dimmer touch panel unresponsive',
-    description: 'Controller module replaced with OEM part.',
-    priority: 'medium',
-    status: 'resolved',
-    reportedBy: 'Guest Butler',
-    assignedTechnician: 'Vikram Patel',
-    createdAt: '2026-09-16 16:00',
-    resolvedAt: '2026-09-17 10:00',
-    slaHours: 24,
-    isOverdue: false,
-    estimatedCost: 120,
-  },
-]
 
 export const MaintenanceHub: React.FC = () => {
   const { success } = useToast()
-  const [tickets, setTickets] = useState<MaintenanceTicket[]>(MOCK_TICKETS)
+  const [tickets, setTickets] = useState<MaintenanceTicket[]>([])
   const [isNewTicketOpen, setIsNewTicketOpen] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newLocation, setNewLocation] = useState('')
   const [newCategory, setNewCategory] = useState<'HVAC / AC' | 'Plumbing' | 'Electrical' | 'Carpentry'>('HVAC / AC')
   const [newPriority, setNewPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium')
 
-  const handleCreateTicket = (e: React.FormEvent) => {
+  // Fetch live tickets from backend
+  React.useEffect(() => {
+    maintenanceApi
+      .getTickets()
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const normalized = data.map((t: any) => ({
+            id: t.id,
+            code: t.code || `MNT-${String(t.id).replace(/\D/g, '') || Math.floor(100 + Math.random() * 900)}`,
+            propertyId: t.propertyId || t.property || 'prop-001',
+            category: t.category || 'HVAC / AC',
+            location: t.location || t.area || (t.roomNumber ? `Room ${t.roomNumber}` : 'Main Facility'),
+            title: t.title || 'General Maintenance',
+            description: t.description || '',
+            priority: (t.priority === 'critical' ? 'urgent' : t.priority || 'medium') as any,
+            status: (t.status === 'open' ? 'reported' : t.status === 'completed' ? 'resolved' : t.status || 'reported') as MaintenanceStatus,
+            reportedBy: t.reportedBy || 'Engineering Dispatch',
+            assignedTechnician: t.assignedTechnician || 'Vikram Patel',
+            createdAt: t.createdAt ? t.createdAt.slice(0, 16).replace('T', ' ') : new Date().toISOString().slice(0, 16).replace('T', ' '),
+            slaHours: t.slaHours || (t.priority === 'critical' || t.priority === 'urgent' ? 4 : 12),
+            isOverdue: false,
+            estimatedCost: t.estimatedCost || 0,
+          }))
+          setTickets(normalized)
+        }
+      })
+      .catch((err) => {
+        console.warn('Backend maintenance tickets unreachable:', err)
+      })
+  }, [])
+
+  const handleCreateTicket = async (e: React.FormEvent) => {
     e.preventDefault()
-    const newTkt: MaintenanceTicket = {
-      id: `m-${Date.now()}`,
-      code: `MNT-${Math.floor(100 + Math.random() * 900)}`,
+    const catMap: Record<string, 'plumbing' | 'electrical' | 'hvac' | 'carpentry' | 'appliance' | 'general'> = {
+      'HVAC / AC': 'hvac',
+      'Plumbing': 'plumbing',
+      'Electrical': 'electrical',
+      'Carpentry': 'carpentry',
+    }
+    const apiCategory = catMap[newCategory] || 'general'
+    const payload = {
       propertyId: 'prop-001',
-      category: newCategory,
+      area: newLocation,
       location: newLocation,
       title: newTitle,
       description: 'Logged via Engineering Dispatch Board',
       priority: newPriority,
-      status: 'reported',
+      category: apiCategory,
+      code: `MNT-${Math.floor(100 + Math.random() * 900)}`,
+      status: 'reported' as MaintenanceStatus,
       reportedBy: 'Engineering Dispatch',
       createdAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
       slaHours: newPriority === 'urgent' ? 4 : 12,
       isOverdue: false,
       estimatedCost: 0,
     }
-    setTickets([newTkt, ...tickets])
-    success('Work Order Logged', `Ticket ${newTkt.code} dispatched to Engineering Team.`)
+
+    try {
+      const res: any = await maintenanceApi.createTicket(payload as any)
+      const createdTkt: MaintenanceTicket = {
+        id: res.id || `m-${Date.now()}`,
+        code: res.code || payload.code,
+        propertyId: res.propertyId || payload.propertyId,
+        category: newCategory,
+        location: res.location || res.area || payload.location,
+        title: res.title || payload.title,
+        description: res.description || payload.description,
+        priority: payload.priority,
+        status: 'reported',
+        reportedBy: payload.reportedBy,
+        createdAt: payload.createdAt,
+        slaHours: payload.slaHours,
+        isOverdue: false,
+        estimatedCost: 0,
+      }
+      setTickets((prev) => [createdTkt, ...prev])
+      success('Work Order Logged & Dispatched', `Ticket ${createdTkt.code} recorded in backend.`)
+    } catch {
+      const fallback: MaintenanceTicket = {
+        id: `m-${Date.now()}`,
+        ...payload,
+        category: newCategory,
+      } as MaintenanceTicket
+      setTickets((prev) => [fallback, ...prev])
+      success('Work Order Logged', `Ticket ${fallback.code} dispatched to Engineering Team.`)
+    }
+
     setIsNewTicketOpen(false)
     setNewTitle('')
     setNewLocation('')
   }
 
-  const handleAdvanceStatus = (ticketId: string) => {
+  const handleAdvanceStatus = async (ticketId: string) => {
+    const target = tickets.find((t) => t.id === ticketId)
+    if (!target) return
+    let next: MaintenanceStatus = target.status
+    if (target.status === 'reported') next = 'assigned'
+    else if (target.status === 'assigned') next = 'in_progress'
+    else if (target.status === 'in_progress') next = 'resolved'
+    else if (target.status === 'resolved') next = 'verified'
+    else if (target.status === 'verified') next = 'closed'
+
     setTickets((prev) =>
-      prev.map((t) => {
-        if (t.id !== ticketId) return t
-        let next: MaintenanceStatus = t.status
-        if (t.status === 'reported') next = 'assigned'
-        else if (t.status === 'assigned') next = 'in_progress'
-        else if (t.status === 'in_progress') next = 'resolved'
-        else if (t.status === 'resolved') next = 'verified'
-        else if (t.status === 'verified') next = 'closed'
-        return { ...t, status: next }
-      })
+      prev.map((t) => (t.id === ticketId ? { ...t, status: next } : t))
     )
-    success('Ticket State Advanced', 'Updated maintenance state machine.')
+    success('Ticket State Advanced', `Work order moved to ${next.replace('_', ' ').toUpperCase()}`)
+
+    try {
+      await maintenanceApi.updateTicketStatus(ticketId, next)
+    } catch (err) {
+      console.warn('Backend update ticket status sync note:', err)
+    }
   }
 
   return (

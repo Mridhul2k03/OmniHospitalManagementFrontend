@@ -1,10 +1,10 @@
 import React, { useState } from 'react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/auth/useAuth'
 import { UserRole } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ShieldCheck, Lock, Mail, Eye, EyeOff, AlertCircle, Building, Sparkles } from 'lucide-react'
+import { ShieldCheck, ShieldAlert, Lock, Mail, Eye, EyeOff, AlertCircle, Building, Sparkles } from 'lucide-react'
 
 export const LoginView: React.FC = () => {
   const { login, isLoading, error: authContextError, clearError } = useAuth()
@@ -14,14 +14,14 @@ export const LoginView: React.FC = () => {
   // From route redirect state if user was pushed here by RequireAuth
   const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || '/app/frontdesk'
 
-  const [email, setEmail] = useState('eleanor.vance@omni-edu.org')
+  const [email, setEmail] = useState('superadmin@omnihospitality.com')
   const [password, setPassword] = useState('Password123!')
-  const [tenantSlug, setTenantSlug] = useState('oxford-crest')
+  const [tenantSlug, setTenantSlug] = useState('grand-horizon')
   const [showPassword, setShowPassword] = useState(false)
   const [selectedRole, setSelectedRole] = useState<UserRole>('super_admin')
   const [localError, setLocalError] = useState<string | null>(null)
 
-  const handleDemoAccountSelect = (demoEmail: string, demoPass: string, demoRole: UserRole, demoTenant = 'oxford-crest') => {
+  const handleDemoAccountSelect = (demoEmail: string, demoPass: string, demoRole: UserRole, demoTenant = 'grand-horizon') => {
     clearError?.()
     setLocalError(null)
     setEmail(demoEmail)
@@ -74,6 +74,28 @@ export const LoginView: React.FC = () => {
         <span>HttpOnly Cookie Authentication Active &bull; Multi-Tenant Scoped</span>
       </div>
 
+      {/* Admin Console Switcher Link Card */}
+      <div className="rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/15 via-amber-500/5 to-transparent p-3 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <div className="h-8 w-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-500 shrink-0">
+            <ShieldAlert className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-xs font-black text-foreground flex items-center gap-1.5">
+              System Administrator?
+              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-500 font-bold uppercase">Restricted</span>
+            </p>
+            <p className="text-[11px] text-muted-foreground">Access the dedicated Admin Console & Master Options</p>
+          </div>
+        </div>
+        <Link
+          to="/auth/admin-login"
+          className="inline-flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-3 py-1.5 rounded-lg border border-amber-500/30 transition-all hover:scale-[1.02] cursor-pointer"
+        >
+          Admin Console &rarr;
+        </Link>
+      </div>
+
       {/* Error Alert Box */}
       {activeError && (
         <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive animate-in fade-in slide-in-from-top-1">
@@ -98,32 +120,32 @@ export const LoginView: React.FC = () => {
           <button
             type="button"
             onClick={() =>
-              handleDemoAccountSelect('eleanor.vance@omni-edu.org', 'Password123!', 'super_admin')
+              handleDemoAccountSelect('superadmin@omnihospitality.com', 'Password123!', 'super_admin')
             }
-            className="rounded-lg border border-border bg-background/90 p-2 text-left hover:border-primary/50 hover:bg-muted/80 transition-all cursor-pointer"
+            className="rounded-lg border border-border bg-background/90 p-2 text-left hover:border-amber-500/50 hover:bg-muted/80 transition-all cursor-pointer"
           >
-            <p className="text-[11px] font-bold leading-none text-foreground">Admin</p>
-            <p className="text-[9px] text-muted-foreground mt-1 truncate font-mono">eleanor.vance</p>
+            <p className="text-[11px] font-bold leading-none text-foreground">Super Admin</p>
+            <p className="text-[9px] text-muted-foreground mt-1 truncate font-mono">superadmin</p>
           </button>
           <button
             type="button"
             onClick={() =>
-              handleDemoAccountSelect('arthur.pendelton@omni-edu.org', 'Password123!', 'property_manager')
+              handleDemoAccountSelect('manager.palace@omnihospitality.com', 'Password123!', 'property_manager')
             }
             className="rounded-lg border border-border bg-background/90 p-2 text-left hover:border-primary/50 hover:bg-muted/80 transition-all cursor-pointer"
           >
-            <p className="text-[11px] font-bold leading-none text-foreground">Faculty</p>
-            <p className="text-[9px] text-muted-foreground mt-1 truncate font-mono">arthur.p</p>
+            <p className="text-[11px] font-bold leading-none text-foreground">Manager</p>
+            <p className="text-[9px] text-muted-foreground mt-1 truncate font-mono">manager.palace</p>
           </button>
           <button
             type="button"
             onClick={() =>
-              handleDemoAccountSelect('devan.nair@omni-edu.org', 'Student123!', 'guest')
+              handleDemoAccountSelect('frontdesk.palace@omnihospitality.com', 'Password123!', 'front_desk')
             }
             className="rounded-lg border border-border bg-background/90 p-2 text-left hover:border-primary/50 hover:bg-muted/80 transition-all cursor-pointer"
           >
-            <p className="text-[11px] font-bold leading-none text-foreground">Student</p>
-            <p className="text-[9px] text-muted-foreground mt-1 truncate font-mono">devan.nair</p>
+            <p className="text-[11px] font-bold leading-none text-foreground">Front Desk</p>
+            <p className="text-[9px] text-muted-foreground mt-1 truncate font-mono">frontdesk.p</p>
           </button>
         </div>
       </div>
@@ -141,7 +163,7 @@ export const LoginView: React.FC = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="name@omni-edu.org"
+              placeholder="alexander@omnihospitality.com"
               className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
@@ -184,12 +206,12 @@ export const LoginView: React.FC = () => {
               value={tenantSlug}
               onChange={(e) => setTenantSlug(e.target.value)}
               required
-              placeholder="oxford-crest"
+              placeholder="ghhg"
               className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-3 text-xs text-foreground placeholder:text-muted-foreground font-mono focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
           <p className="mt-1 text-[10px] text-muted-foreground">
-            Slug or UUID for data isolation (e.g. <code className="font-mono">oxford-crest</code>).
+            Slug or UUID for data isolation (e.g. <code className="font-mono">ghhg</code>).
           </p>
         </div>
 
@@ -203,15 +225,16 @@ export const LoginView: React.FC = () => {
             onChange={(e) => setSelectedRole(e.target.value as UserRole)}
             className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
           >
-            <option value="super_admin">Institution Admin / Super Admin (Full Governance)</option>
-            <option value="property_manager">Faculty / Property Manager (Academic & Operations)</option>
-            <option value="front_desk">Front Desk Agent (Admissions & Registrar)</option>
-            <option value="accountant">Financial Accountant (Invoices & Payments)</option>
-            <option value="hr">HR Director (Faculty & Staff Rosters)</option>
-            <option value="chef_kitchen">Executive Chef (Cafeteria / KDS)</option>
-            <option value="restaurant_pos">Point of Sale (Dining & Services)</option>
+            <option value="org_admin">Hotel General Manager / Org Admin</option>
+            <option value="property_manager">Property Manager (Operations & PMS)</option>
+            <option value="front_desk">Front Desk Agent (Reception & Reservations)</option>
+            <option value="accountant">Financial Accountant (Invoices & Folios)</option>
+            <option value="hr">HR Director (Staff Rosters)</option>
+            <option value="chef_kitchen">Executive Chef (Kitchen KDS)</option>
+            <option value="restaurant_pos">Point of Sale (Dining & Outlets)</option>
             <option value="shareholder">Shareholder (Audited Portal)</option>
-            <option value="guest">Student / Learner Portal</option>
+            <option value="guest">Guest Portal (Self-Service)</option>
+            <option value="super_admin">ILA Platform SuperAdmin (Root Authority)</option>
           </select>
         </div>
 
@@ -219,6 +242,27 @@ export const LoginView: React.FC = () => {
           Authenticate & Enter Portal
         </Button>
       </form>
+
+      <div className="text-center pt-3 border-t border-border/60 space-y-2">
+        <p className="text-xs text-muted-foreground">
+          ILA SaaS Platform Owner?{' '}
+          <Link
+            to="/ila-admin/login"
+            className="font-bold text-purple-400 hover:text-purple-300 hover:underline transition-colors"
+          >
+            Access ILA Platform Console &rarr;
+          </Link>
+        </p>
+        <p className="text-xs text-muted-foreground">
+          New hospitality client or property?{' '}
+          <Link
+            to="/auth/register"
+            className="font-bold text-amber-500 hover:text-amber-400 hover:underline transition-colors"
+          >
+            Register & Onboard your property
+          </Link>
+        </p>
+      </div>
     </div>
   )
 }
