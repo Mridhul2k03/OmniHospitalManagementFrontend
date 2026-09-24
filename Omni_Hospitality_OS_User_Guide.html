@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Omni Hospitality Management Operating System (HMOS) - User Guide</title>
+<style>
+  @page {
+    size: A4;
+    margin: 18mm 16mm 20mm 16mm;
+    @bottom-right {
+      content: counter(page);
+      font-size: 9pt;
+      color: #64748b;
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #1e293b;
+    line-height: 1.55;
+    font-size: 10.5pt;
+    margin: 0;
+    padding: 0;
+    background: #ffffff;
+  }
+
+  /* Cover Page */
+  .cover {
+    page-break-after: always;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 94vh;
+    padding: 40px 20px;
+    box-sizing: border-box;
+    border-left: 6px solid #2563eb;
+    background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  }
+
+  .cover-header {
+    margin-top: 40px;
+  }
+
+  .brand-badge {
+    display: inline-block;
+    background: #2563eb;
+    color: white;
+    font-size: 11pt;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 6px 14px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+
+  .cover-title {
+    font-size: 32pt;
+    font-weight: 800;
+    line-height: 1.15;
+    color: #0f172a;
+    margin: 0 0 16px 0;
+  }
+
+  .cover-subtitle {
+    font-size: 16pt;
+    font-weight: 400;
+    color: #475569;
+    max-width: 600px;
+    margin-bottom: 30px;
+  }
+
+  .cover-meta {
+    border-top: 2px solid #e2e8f0;
+    padding-top: 24px;
+  }
+
+  .meta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    font-size: 10pt;
+  }
+
+  .meta-item strong {
+    color: #0f172a;
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  /* Typography & Layout */
+  h1 {
+    font-size: 20pt;
+    font-weight: 800;
+    color: #0f172a;
+    border-bottom: 2px solid #2563eb;
+    padding-bottom: 8px;
+    margin-top: 32px;
+    margin-bottom: 16px;
+    page-break-after: avoid;
+  }
+
+  h2 {
+    font-size: 14pt;
+    font-weight: 700;
+    color: #1e293b;
+    margin-top: 24px;
+    margin-bottom: 10px;
+    page-break-after: avoid;
+  }
+
+  h3 {
+    font-size: 11.5pt;
+    font-weight: 700;
+    color: #334155;
+    margin-top: 18px;
+    margin-bottom: 6px;
+    page-break-after: avoid;
+  }
+
+  p {
+    margin: 0 0 12px 0;
+    color: #334155;
+  }
+
+  .lead {
+    font-size: 11.5pt;
+    font-weight: 500;
+    color: #1e293b;
+    line-height: 1.6;
+    background: #f1f5f9;
+    padding: 14px 18px;
+    border-radius: 8px;
+    border-left: 4px solid #3b82f6;
+    margin-bottom: 20px;
+  }
+
+  /* Cards and Modules */
+  .module-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    page-break-inside: avoid;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  .module-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+  }
+
+  .module-title {
+    font-size: 12pt;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+  }
+
+  .role-tag {
+    font-size: 8pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: #e0f2fe;
+    color: #0369a1;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  /* Button Badges */
+  .btn-badge {
+    display: inline-block;
+    font-family: inherit;
+    font-size: 8.5pt;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: #2563eb;
+    color: #ffffff;
+    margin: 1px 4px 1px 0;
+  }
+
+  .btn-secondary {
+    background: #f1f5f9;
+    color: #334155;
+    border: 1px solid #cbd5e1;
+  }
+
+  .btn-success {
+    background: #10b981;
+    color: white;
+  }
+
+  .btn-danger {
+    background: #ef4444;
+    color: white;
+  }
+
+  .btn-amber {
+    background: #f59e0b;
+    color: white;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0 20px 0;
+    font-size: 9.5pt;
+    page-break-inside: avoid;
+  }
+
+  th {
+    background: #f8fafc;
+    color: #334155;
+    text-align: left;
+    padding: 9px 12px;
+    font-weight: 700;
+    border-bottom: 2px solid #cbd5e1;
+  }
+
+  td {
+    padding: 9px 12px;
+    border-bottom: 1px solid #e2e8f0;
+    color: #475569;
+    vertical-align: top;
+  }
+
+  tr:nth-child(even) td {
+    background: #fafafa;
+  }
+
+  /* Workflow Steps */
+  .step-box {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 14px;
+    page-break-inside: avoid;
+  }
+
+  .step-num {
+    background: #2563eb;
+    color: white;
+    font-weight: 800;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10pt;
+    flex-shrink: 0;
+  }
+
+  .step-content {
+    flex-grow: 1;
+  }
+
+  .step-content strong {
+    color: #0f172a;
+    display: block;
+    margin-bottom: 3px;
+  }
+
+  .callout-tip {
+    background: #ecfdf5;
+    border-left: 4px solid #10b981;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 9pt;
+    color: #065f46;
+    margin: 12px 0;
+  }
+
+  .page-break {
+    page-break-before: always;
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER PAGE -->
+<div class="cover">
+  <div class="cover-header">
+    <div class="brand-badge">Omni Hospitality Systems</div>
+    <h1 class="cover-title">Omni Hospitality OS (HMOS)<br>Complete Product & Operations Guide</h1>
+    <p class="cover-subtitle">A comprehensive, non-technical handbook explaining how the entire hospitality management system works, how every department connects, and what every screen and button does.</p>
+  </div>
+
+  <div class="cover-meta">
+    <div class="meta-grid">
+      <div class="meta-item">
+        <strong>Designed For:</strong>
+        Hoteliers, General Managers, Front Desk, F&B, Housekeeping, Finance & Investors
+      </div>
+      <div class="meta-item">
+        <strong>Edition & Version:</strong>
+        Enterprise Edition 2026.1 • Live Cloud & DevTunnel Connected
+      </div>
+      <div class="meta-item">
+        <strong>Property Scoping:</strong>
+        Multi-Tenant Architecture (Oxford Crest Collection)
+      </div>
+      <div class="meta-item">
+        <strong>Document Status:</strong>
+        Official Operations & Training Manual
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CHAPTER 1: EXECUTIVE OVERVIEW -->
+<h1>Chapter 1: The Big Picture & How Omni Works</h1>
+
+<div class="lead">
+  <strong>What is Omni HMOS?</strong><br>
+  Omni Hospitality Management Operating System (HMOS) is an all-in-one software platform that runs every single department of a modern luxury hotel or resort. Instead of using 10 different fragmented software tools for front desk, dining, housekeeping, kitchen, and accounting, Omni unites them into <strong>one single real-time brain</strong>.
+</div>
+
+<h2>How Everything Connects in Real-Time</h2>
+<p>When an action happens anywhere in the hotel, the rest of the hotel updates instantaneously:</p>
+
+<div class="step-box">
+  <div class="step-num">1</div>
+  <div class="step-content">
+    <strong>A Guest Books or Arrives</strong>
+    Whether booked through Booking.com or walking in at the lobby, their reservation instantly appears on the <em>Front Desk Arrivals Manifest</em> and reserves a room on the <em>Room Availability Board</em>.
+  </div>
+</div>
+
+<div class="step-box">
+  <div class="step-num">2</div>
+  <div class="step-content">
+    <strong>Guest Checks In & Master Folio Opens</strong>
+    When Front Desk clicks <span class="btn-badge">Check In</span>, a <em>Unified Master Folio</em> (digital bill) is born. The guest's room key is encoded, and digital check-in stores their signed arrival card.
+  </div>
+</div>
+
+<div class="step-box">
+  <div class="step-num">3</div>
+  <div class="step-content">
+    <strong>Guest Enjoys Hotel Services (Dining, Spa, Transport)</strong>
+    When the guest dines at the restaurant, the waiter enters their order on the <em>Restaurant POS</em>. Clicking <span class="btn-badge btn-amber">Fire to Kitchen</span> sends tickets directly to the chef's <em>Kitchen Display Screen</em>. When the bill comes, clicking <span class="btn-badge">Post to Room</span> instantly charges it to their hotel room folio—no cash needed!
+  </div>
+</div>
+
+<div class="step-box">
+  <div class="step-num">4</div>
+  <div class="step-content">
+    <strong>Housekeeping Keeps Rooms Immaculate</strong>
+    When a guest checks out, the room automatically turns <span class="btn-badge btn-danger">Dirty</span> on the <em>Housekeeping Board</em>. Once cleaned and inspected, the housekeeper taps <span class="btn-badge btn-success">Mark Clean</span>, instantly making it available for new arrivals.
+  </div>
+</div>
+
+<div class="step-box">
+  <div class="step-num">5</div>
+  <div class="step-content">
+    <strong>Night Audit, Financials & Executive Visibility</strong>
+    At midnight, the <em>Night Audit Engine</em> balances all day transactions, calculates total daily revenue, updates RevPAR/ADR, and feeds real-time yields to the <em>Executive Dashboard</em> and <em>Shareholder Portal</em>.
+  </div>
+</div>
+
+<!-- CHAPTER 2: FRONT DESK & ROOM MANAGEMENT -->
+<div class="page-break"></div>
+<h1>Chapter 2: Front Desk & Room Operations</h1>
+
+<p>The Front Desk is the heartbeat of hotel operations. Staff can view upcoming arrivals, process departures, take walk-in guests, and inspect rooms.</p>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">1. Front Desk Dashboard & Quick Actions</div>
+    <span class="role-tag">Front Desk / Concierge</span>
+  </div>
+  <p><strong>Screen Purpose:</strong> The primary cockpit for daily lobby operations. Shows total in-house guests, pending arrivals, departing rooms, and today's expected occupancy percentage.</p>
+  <p><strong>Key Buttons & How to Use Them:</strong></p>
+  <ul>
+    <li><span class="btn-badge">New Walk-In Booking</span>: Opens a guest registration window. Use this when a guest arrives at the desk without a prior booking. Enter their name, contact details, select an available room type, and confirm dates.</li>
+    <li><span class="btn-badge btn-success">Check In</span>: Appears next to expected guests. Clicking this confirms their arrival, assigns their physical room number, and opens their Master Folio.</li>
+    <li><span class="btn-badge btn-secondary">Check Out</span>: Appears for departing guests. Clicking this reviews their final bill balance. If the balance is zero, it marks the room as departed and notifies Housekeeping to clean.</li>
+    <li><span class="btn-badge btn-secondary">View Folio</span>: Instantly opens the guest's billing statement to review charges, split invoices, or take payments.</li>
+  </ul>
+</div>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">2. Room Availability Board</div>
+    <span class="role-tag">Front Office / Housekeeping</span>
+  </div>
+  <p><strong>Screen Purpose:</strong> A visual grid displaying every single room floor-by-floor (e.g., Deluxe King, Presidential Suite, Executive Suite) with color-coded status badges.</p>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 25%;">Badge Color</th>
+        <th style="width: 25%;">Room Status</th>
+        <th>What It Means in Plain English</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="btn-badge btn-success">Green</span></td>
+        <td><strong>Available & Clean</strong></td>
+        <td>Ready for immediate check-in. The room is inspected and vacant.</td>
+      </tr>
+      <tr>
+        <td><span class="btn-badge">Blue</span></td>
+        <td><strong>Occupied</strong></td>
+        <td>A guest is currently staying in this room.</td>
+      </tr>
+      <tr>
+        <td><span class="btn-badge btn-amber">Orange</span></td>
+        <td><strong>Dirty / Turnover</strong></td>
+        <td>Guest checked out or requested cleaning. Housekeeping is assigned.</td>
+      </tr>
+      <tr>
+        <td><span class="btn-badge btn-danger">Red</span></td>
+        <td><strong>Out of Order (OOO)</strong></td>
+        <td>Room is temporarily offline due to maintenance or renovation.</td>
+      </tr>
+    </tbody>
+  </table>
+  <p><strong>Key Actions:</strong> Clicking any room opens its details—allowing front desk to change room rates, mark a room for maintenance, or change room assignment for a VIP guest.</p>
+</div>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">3. Digital Contactless Check-In</div>
+    <span class="role-tag">Self-Service / Tablet</span>
+  </div>
+  <p><strong>Screen Purpose:</strong> An iPad or mobile-friendly screen where guests can self-check-in at lobby kiosks or on their smartphones before arriving.</p>
+  <p><strong>How It Works:</strong></p>
+  <ul>
+    <li>The guest enters their Confirmation Number or Booking Reference.</li>
+    <li>They verify their identity and can capture a photo of their passport or government ID.</li>
+    <li>They sign the digital registration card on the touch screen with their finger.</li>
+    <li>Clicking <span class="btn-badge btn-success">Complete Digital Check-In</span> completes the check-in and dispatches their mobile key or instructs them to collect keycards at the express kiosk.</li>
+  </ul>
+</div>
+
+<!-- CHAPTER 3: RESTAURANT POS & KITCHEN (KDS) -->
+<div class="page-break"></div>
+<h1>Chapter 3: Food & Beverage — Restaurant POS & Kitchen</h1>
+
+<p>Omni includes a high-speed Food & Beverage Point of Sale (POS) and an interactive Kitchen Display System (KDS) designed for restaurants, rooftop bars, and in-room dining.</p>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">1. Restaurant POS (Point of Sale)</div>
+    <span class="role-tag">Waiters / Bartenders / Cashiers</span>
+  </div>
+  <p><strong>Screen Purpose:</strong> Taking dining orders, selecting menu items, managing table seatings, firing food orders to kitchen stations, and settling bills.</p>
+  <p><strong>Step-by-Step Staff Workflow:</strong></p>
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>Select a Table:</strong> Click on an open dining table (e.g., Table 4, Patio 2, Pool Cabana).
+    </div>
+  </div>
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>Add Menu Items:</strong> Tap menu categories (Starters, Steaks, Pasta, Cocktails) and click items to add them to the Order Pad.
+    </div>
+  </div>
+  <div class="step-box">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <strong>Click <span class="btn-badge btn-amber">Fire to Kitchen</span>:</strong> This instantly transmits a Kitchen Order Ticket (KOT) to the chefs' display screens. Waiters do not have to walk into the kitchen!
+    </div>
+  </div>
+  <div class="step-box">
+    <div class="step-num">4</div>
+    <div class="step-content">
+      <strong>Bill Settlement Options:</strong>
+      <ul>
+        <li><span class="btn-badge">Post to Room</span>: Enter the guest's room number (e.g., Room 304). The meal total is transferred directly onto their master hotel bill.</li>
+        <li><span class="btn-badge btn-success">Settle Check</span>: Use this for walk-in restaurant patrons paying by Credit Card, Debit Card, or Cash. Records payment and prints their tax receipt.</li>
+        <li><span class="btn-badge btn-secondary">Print Check</span>: Prints an itemized dining slip to present to the table before payment.</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">2. Kitchen Display System (KDS)</div>
+    <span class="role-tag">Head Chef / Line Cooks / Expediters</span>
+  </div>
+  <p><strong>Screen Purpose:</strong> Mounted on kitchen touchscreens. Replaces noisy paper printers with live, color-coded electronic tickets that update over real-time WebSockets.</p>
+  <p><strong>Ticket Flow & Status Bumping:</strong></p>
+  <ul>
+    <li><strong>New Order (White/Blue):</strong> The ticket appears instantly with time elapsed (e.g., "Fired 2 mins ago"). Contains dishes, quantities, and cooking notes (e.g., "Medium Rare, dressing on side").</li>
+    <li><span class="btn-badge btn-amber">Start Prep</span>: The line cook taps this when putting the steaks on the grill. Status turns to "Preparing".</li>
+    <li><span class="btn-badge btn-success">Ready for Service</span>: When plating is finished, cook taps this. Notifies service staff that Table 4 is ready to be served.</li>
+    <li><span class="btn-badge btn-secondary">Bump / Served</span>: Removes the ticket from active kitchen view once the food leaves the kitchen pass.</li>
+  </ul>
+</div>
+
+<!-- CHAPTER 4: GUEST BILLING & MASTER FOLIOS -->
+<div class="page-break"></div>
+<h1>Chapter 4: Guest Billing & Unified Master Folios</h1>
+
+<p>Every resident guest has a <strong>Master Folio</strong>. In Omni, this folio acts as an itemized digital ledger that consolidates room charges, restaurant meals, spa sessions, minibar usage, and laundry into one clear bill.</p>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">Unified Folio Management</div>
+    <span class="role-tag">Front Desk / Cashier / Night Audit</span>
+  </div>
+  <p><strong>What Staff See on the Folio Screen:</strong></p>
+  <ul>
+    <li><strong>Folio Summary:</strong> Total Charges, Total Payments Received, and Outstanding Balance.</li>
+    <li><strong>Itemized Ledger Table:</strong> Date, Department (e.g., "Room Night", "La Pergola Dining", "Spa Swedish Massage"), Reference ID, and Amount.</li>
+  </ul>
+
+  <p><strong>Key Buttons & Operations:</strong></p>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 25%;">Button / Action</th>
+        <th>What It Does & When to Use It</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="btn-badge btn-success">Process Payment</span></td>
+        <td>Takes payment against the balance via Card, Cash, UPI, or Corporate Invoice. Immediately generates a payment receipt with transaction ID.</td>
+      </tr>
+      <tr>
+        <td><span class="btn-badge">Add Manual Charge</span></td>
+        <td>Manually posts a charge onto the guest's folio (e.g., lost keycard fee, airport transfer, minibar refill).</td>
+      </tr>
+      <tr>
+        <td><span class="btn-badge btn-secondary">Split Folio</span></td>
+        <td>Splits the bill between two guests sharing a room, or splits room charges to a Corporate Company Account and personal dining charges to the guest's personal credit card.</td>
+      </tr>
+      <tr>
+        <td><span class="btn-badge btn-secondary">Print / Email Invoice</span></td>
+        <td>Generates a luxury PDF tax invoice with VAT, GST, and property header to email directly to the guest or hand over upon checkout.</td>
+      </tr>
+      <tr>
+        <td><span class="btn-badge btn-danger">Post Adjustment / Void</span></td>
+        <td>Applies a credit or discount if there was a billing dispute or complimentary courtesy agreed by the General Manager.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- CHAPTER 5: HOUSEKEEPING & MAINTENANCE -->
+<div class="page-break"></div>
+<h1>Chapter 5: Housekeeping Turnover & Engineering Maintenance</h1>
+
+<p>A hotel's reputation relies on spotless cleanliness and flawless room maintenance. Omni provides real-time digital custody of every room.</p>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">1. Housekeeping Turnover Hub</div>
+    <span class="role-tag">Executive Housekeeper / Room Attendants</span>
+  </div>
+  <p><strong>Screen Purpose:</strong> Manages daily room cleaning rosters, tracks room turnover times, and ensures quality checklists are completed before guests check in.</p>
+  <p><strong>Key Actions:</strong></p>
+  <ul>
+    <li><span class="btn-badge">Assign Attendant</span>: Assigns specific room floors (e.g., Floor 3: Rooms 301–315) to a housekeeper.</li>
+    <li><span class="btn-badge btn-amber">Start Cleaning</span>: Attendant taps this upon entering the room. System tracks cleaning duration.</li>
+    <li><span class="btn-badge btn-success">Mark Clean & Inspected</span>: Supervisor checks linens, amenities, and cleanliness, then taps this. The room immediately switches to "Clean" on the Front Desk board.</li>
+    <li><span class="btn-badge btn-secondary">Request Linen / Amenities</span>: Alerts storehouse that extra towels or shampoo bottles are needed.</li>
+  </ul>
+</div>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">2. Engineering & Maintenance Work Orders</div>
+    <span class="role-tag">Maintenance Engineers / Facilities</span>
+  </div>
+  <p><strong>Screen Purpose:</strong> Reporting and resolving facility issues (e.g., AC not cooling, plumbing leak, TV remote replacement) across guest rooms, banquet halls, and public spaces.</p>
+  <p><strong>Key Actions:</strong></p>
+  <ul>
+    <li><span class="btn-badge btn-danger">Log Work Order</span>: Staff creates a maintenance ticket. Select Room/Area, Issue Category, and Priority (Low, Medium, Critical Emergency).</li>
+    <li><span class="btn-badge">Assign Technician</span>: Dispatches duty engineer with required parts.</li>
+    <li><span class="btn-badge btn-success">Complete & Resolve</span>: Engineer closes ticket after testing equipment. If the room was marked "Out of Order", resolving the ticket automatically restores it to service.</li>
+  </ul>
+</div>
+
+<!-- CHAPTER 6: SPECIALIZED DEPARTMENTS -->
+<div class="page-break"></div>
+<h1>Chapter 6: Specialized Department Modules</h1>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">Banquets & Event Management</div>
+    <span class="role-tag">Events Director / Sales</span>
+  </div>
+  <p><strong>Purpose:</strong> Managing conferences, weddings, and grand galas in hotel ballrooms.</p>
+  <ul>
+    <li><span class="btn-badge">Create Event Booking</span>: Reserves banquet halls (e.g., Grand Ballroom, Crystal Pavilion), sets catering packages, attendee count, and AV requirements.</li>
+    <li><span class="btn-badge btn-secondary">Generate BEO (Banquet Event Order)</span>: Creates the official schedule for kitchen, decoration, and audio teams.</li>
+    <li><span class="btn-badge btn-success">Email Pro-Forma Invoice</span>: Dispatches an advance corporate deposit invoice to the corporate client.</li>
+  </ul>
+</div>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">Spa & Wellness Center</div>
+    <span class="role-tag">Spa Receptionist / Therapists</span>
+  </div>
+  <p><strong>Purpose:</strong> Booking massage therapies, facials, and wellness sessions with dedicated therapists and treatment suites.</p>
+  <ul>
+    <li><span class="btn-badge">Book Appointment</span>: Selects treatment, therapist, and available room slot.</li>
+    <li><span class="btn-badge">Charge to Room / Pay</span>: Posts spa treatment charges directly to the guest's hotel room folio or accepts direct credit card payment.</li>
+  </ul>
+</div>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">Fleet & Chauffeur Dispatch</div>
+    <span class="role-tag">Concierge / Fleet Manager</span>
+  </div>
+  <p><strong>Purpose:</strong> Scheduling airport VIP pickups, limousine rentals, and guest city tours.</p>
+  <ul>
+    <li><span class="btn-badge">Schedule Airport Transfer</span>: Records flight number, terminal, pickup time, and assigns a hotel chauffeur and luxury vehicle.</li>
+    <li><span class="btn-badge btn-success">Complete Trip</span>: Records fuel/trip charges and posts transfer fee to guest folio.</li>
+  </ul>
+</div>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">Cloakroom & Luggage Vault</div>
+    <span class="role-tag">Bell Desk / Porters</span>
+  </div>
+  <p><strong>Purpose:</strong> Securing guest luggage before check-in or after checkout while they tour the city.</p>
+  <ul>
+    <li><span class="btn-badge">Check In Baggage</span>: Generates a numbered baggage claim ticket (e.g., Claim #LUG-882) and records bag quantity.</li>
+    <li><span class="btn-badge btn-secondary">Claim & Release</span>: Verifies the claim ticket upon guest return and releases stored bags.</li>
+  </ul>
+</div>
+
+<!-- CHAPTER 7: INVENTORY & FINANCE -->
+<div class="page-break"></div>
+<h1>Chapter 7: Inventory Audits & Financial Control</h1>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">1. Central Storehouse Inventory & Stock Audits</div>
+    <span class="role-tag">Storekeeper / Procurement Manager</span>
+  </div>
+  <p><strong>Purpose:</strong> Managing hotel supplies (beverages, food staples, bathroom amenities, cleaning chemicals) and preventing stockouts.</p>
+  <p><strong>Key Operations:</strong></p>
+  <ul>
+    <li><strong>Par Level Tracking:</strong> System highlights items in red when current quantity dips below safety thresholds.</li>
+    <li><span class="btn-badge">Create Purchase Order (PO)</span>: Generates an official purchase requisition to order replenishment goods from approved vendors.</li>
+    <li><span class="btn-badge btn-amber">Start Stock Count (Physical Audit)</span>: Opens the Stock Audit Tool. Storekeepers walk through the warehouse, type in the physical count, and the system automatically calculates the variance (surplus or shortage) and commits audited stock adjustments.</li>
+  </ul>
+</div>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">2. Finance & End-of-Day Night Audit</div>
+    <span class="role-tag">Financial Controller / Night Auditor</span>
+  </div>
+  <p><strong>Purpose:</strong> The official close of the hotel business day. Reconciles cash, credit cards, ledger charges, and posts daily room and tax charges onto every active guest folio.</p>
+  <p><strong>Step-by-Step Night Audit Workflow:</strong></p>
+  <div class="step-box">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <strong>Verify Cashier Drawers:</strong> Review daily cash and credit card receipts collected across Front Desk, Bar, and Restaurants.
+    </div>
+  </div>
+  <div class="step-box">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <strong>Click <span class="btn-badge btn-danger">Run Night Audit</span>:</strong> The system locks the business date, automatically posts tonight's room rates + applicable taxes to all in-house folios, rolls the hotel operating date to tomorrow, and archives daily financial statements.
+    </div>
+  </div>
+</div>
+
+<!-- CHAPTER 8: EXECUTIVE & INVESTOR INTELLIGENCE -->
+<div class="page-break"></div>
+<h1>Chapter 8: Revenue, Executive & Shareholder Intelligence</h1>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">1. Dynamic AI Pricing & Surge Engine</div>
+    <span class="role-tag">Revenue Manager / General Manager</span>
+  </div>
+  <p><strong>Purpose:</strong> Maximizing hotel revenue by automatically adjusting room rates based on current occupancy, city events, weekend demand, and seasonal surges.</p>
+  <ul>
+    <li><span class="btn-badge">Enable AI Dynamic Pricing</span>: When occupancy crosses 85%, room prices automatically increase by 20% to maximize profitability.</li>
+    <li><span class="btn-badge btn-secondary">Set Surge Multiplier</span>: Staff can apply instant holiday or festival surge rates across room categories with one click.</li>
+  </ul>
+</div>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">2. OTA Channel Manager (Booking.com, Expedia, Airbnb)</div>
+    <span class="role-tag">E-Commerce & Distribution Manager</span>
+  </div>
+  <p><strong>Purpose:</strong> Keeping hotel inventory synchronized across global travel websites in real time to prevent overbooking.</p>
+  <ul>
+    <li><span class="btn-badge btn-success">Sync All Channels</span>: Pushes live rates and remaining room counts to external OTAs.</li>
+    <li><strong>Two-Way Instant Booking:</strong> When someone reserves on Expedia, that room is instantly blocked in Omni, avoiding double bookings.</li>
+  </ul>
+</div>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">3. Executive KPI Dashboard</div>
+    <span class="role-tag">General Manager / C-Level Executives</span>
+  </div>
+  <p><strong>Purpose:</strong> High-level business cockpit tracking key industry health indicators:</p>
+  <ul>
+    <li><strong>RevPAR (Revenue Per Available Room):</strong> Total room revenue divided by total rooms in the hotel.</li>
+    <li><strong>ADR (Average Daily Rate):</strong> The average rental price realized per paid occupied room.</li>
+    <li><strong>Occupancy Rate (%):</strong> Percentage of available rooms currently filled.</li>
+    <li><strong>GOPPAR (Gross Operating Profit Per Available Room):</strong> True operational bottom-line health.</li>
+  </ul>
+</div>
+
+<div class="module-card">
+  <div class="module-card-header">
+    <div class="module-title">4. Shareholder & Investor Portal</div>
+    <span class="role-tag">Hotel Owners / Equity Investors</span>
+  </div>
+  <p><strong>Purpose:</strong> A dedicated, secure dashboard for property owners and equity shareholders to review their investment performance.</p>
+  <ul>
+    <li><strong>Cap Table Breakdown:</strong> Shows equity percentage and shareholder shares.</li>
+    <li><strong>Dividend Yield:</strong> Displays annualized return on investment.</li>
+    <li><span class="btn-badge btn-secondary">Download Distribution Statement</span>: Generates official quarterly dividend payout slips.</li>
+  </ul>
+</div>
+
+<!-- CHAPTER 9: BUTTON DICTIONARY -->
+<div class="page-break"></div>
+<h1>Chapter 9: The "Button & Control" Quick Dictionary</h1>
+
+<p>A handy cheat-sheet explaining the most common buttons across the application:</p>
+
+<table>
+  <thead>
+    <tr>
+      <th style="width: 25%;">Button Label</th>
+      <th style="width: 25%;">Where You See It</th>
+      <th>What Happens When You Click It</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><span class="btn-badge btn-success">Check In</span></td>
+      <td>Front Desk / Reservations</td>
+      <td>Assigns room, marks guest as resident, and activates their digital billing folio.</td>
+    </tr>
+    <tr>
+      <td><span class="btn-badge btn-secondary">Check Out</span></td>
+      <td>Front Desk</td>
+      <td>Verifies zero balance, releases guest, and alerts Housekeeping to clean room.</td>
+    </tr>
+    <tr>
+      <td><span class="btn-badge">New Walk-In Booking</span></td>
+      <td>Front Desk Header</td>
+      <td>Opens the fast reservation pop-up for guests standing right at the reception.</td>
+    </tr>
+    <tr>
+      <td><span class="btn-badge btn-amber">Fire to Kitchen</span></td>
+      <td>Restaurant POS</td>
+      <td>Transmits the customer's food order to chef display screens without paper.</td>
+    </tr>
+    <tr>
+      <td><span class="btn-badge">Post to Room</span></td>
+      <td>POS, Spa, Transport</td>
+      <td>Transfers dining, massage, or car rental costs onto the guest's hotel bill.</td>
+    </tr>
+    <tr>
+      <td><span class="btn-badge btn-success">Settle Check</span></td>
+      <td>Restaurant POS</td>
+      <td>Takes payment from non-resident restaurant patrons by Card or Cash.</td>
+    </tr>
+    <tr>
+      <td><span class="btn-badge btn-success">Start Stock Count</span></td>
+      <td>Inventory Hub</td>
+      <td>Opens the stock audit sheet where storekeepers record actual counts vs system quantities.</td>
+    </tr>
+    <tr>
+      <td><span class="btn-badge btn-danger">Run Night Audit</span></td>
+      <td>Finance Hub</td>
+      <td>Closes today's accounting book, posts room charges, and rolls date to tomorrow.</td>
+    </tr>
+    <tr>
+      <td><span class="btn-badge btn-secondary">Split Folio</span></td>
+      <td>Master Folio View</td>
+      <td>Separates corporate room charges from personal dining/minibar charges.</td>
+    </tr>
+    <tr>
+      <td><span class="btn-badge btn-success">Mark Clean & Inspected</span></td>
+      <td>Housekeeping Hub</td>
+      <td>Supervisor verifies room cleanliness; room immediately switches to green available.</td>
+    </tr>
+    <tr>
+      <td><span class="btn-badge btn-secondary">Sync All Channels</span></td>
+      <td>OTA Channel Manager</td>
+      <td>Pushes updated room counts and rates to Booking.com, Expedia, and Airbnb.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout-tip">
+  <strong>Pro-Tip for Staff:</strong> All data in Omni is backed by continuous auto-save and WebSocket live push. You never need to refresh your browser page to see status updates!
+</div>
+
+<!-- CHAPTER 10: USER BEST PRACTICES -->
+<h2>Summary: 5 Golden Rules for Hotel Staff</h2>
+<ol>
+  <li><strong>Always Post to Room with Confirmation:</strong> When dining guests charge meals to their room, verify the room number and guest surname on the screen before confirming.</li>
+  <li><strong>Mark Rooms Promptly:</strong> Housekeepers should tap <span class="btn-badge btn-success">Mark Clean</span> immediately after finishing an inspection so Front Desk can check in waiting guests without delays.</li>
+  <li><strong>Conduct Weekly Stock Audits:</strong> Use the <span class="btn-badge">Start Stock Count</span> tool weekly in the central pantry to catch discrepancies early.</li>
+  <li><strong>Perform Night Audit on Time:</strong> Run the Night Audit daily between 1:00 AM and 3:00 AM once all late restaurant checks have been settled.</li>
+  <li><strong>Keep Guest Notes Updated:</strong> Add guest dietary preferences (e.g., "Gluten-Free") and room preferences (e.g., "High Floor, extra pillows") in the Guest CRM to ensure unforgettable luxury hospitality!</li>
+</ol>
+
+</body>
+</html>

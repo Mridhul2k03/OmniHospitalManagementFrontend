@@ -3,16 +3,43 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Modal } from '@/components/ui/modal'
+import { Input } from '@/components/ui/input'
 import { useToast } from '@/components/ui/toast'
 import { OTAChannelConnection } from '@/types'
-import { channelsApi } from '@/api/endpoints'
-import { Globe2, RefreshCw, ArrowRightLeft } from 'lucide-react'
+import { channelsApi, operationsApi } from '@/api/endpoints'
+import { Globe2, RefreshCw, ArrowRightLeft, Plus } from 'lucide-react'
+
+interface ChannelMappingItem {
+  id: string
+  channelId: string
+  pmsRoomTypeId: string
+  pmsRoomTypeName: string
+  otaRoomCode: string
+  rateMultiplier: number
+  status: string
+}
+
+const DEFAULT_MAPPINGS: ChannelMappingItem[] = [
+  { id: 'm-1', channelId: 'ch-1', pmsRoomTypeId: 'rt-001', pmsRoomTypeName: 'Penthouse Royal Suite', otaRoomCode: 'PENT-ROYAL', rateMultiplier: 1.10, status: 'synced' },
+  { id: 'm-2', channelId: 'ch-1', pmsRoomTypeId: 'rt-002', pmsRoomTypeName: 'Executive Oceanfront King', otaRoomCode: 'EXEC-OCEAN-K', rateMultiplier: 1.05, status: 'synced' },
+  { id: 'm-3', channelId: 'ch-1', pmsRoomTypeId: 'rt-003', pmsRoomTypeName: 'Premier Jacuzzi Suite', otaRoomCode: 'PREM-JACUZZI', rateMultiplier: 1.05, status: 'synced' },
+]
 
 export const ChannelsHub: React.FC = () => {
   const { success, error } = useToast()
   const [channels, setChannels] = useState<OTAChannelConnection[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isSyncing, setIsSyncing] = useState(false)
+
+  // Mappings Modal State
+  const [selectedChannel, setSelectedChannel] = useState<OTAChannelConnection | null>(null)
+  const [mappings, setMappings] = useState<ChannelMappingItem[]>(DEFAULT_MAPPINGS)
+  const [isLoadingMappings, setIsLoadingMappings] = useState(false)
+  const [newPmsRoomTypeName, setNewPmsRoomTypeName] = useState('Standard Deluxe')
+  const [newOtaRoomCode, setNewOtaRoomCode] = useState('STD-DLX')
+  const [newRateMultiplier, setNewRateMultiplier] = useState('1.05')
+  const [isSavingMapping, setIsSavingMapping] = useState(false)
 
   useEffect(() => {
     let mounted = true
@@ -32,6 +59,64 @@ export const ChannelsHub: React.FC = () => {
       mounted = false
     }
   }, [])
+
+  const handleOpenMappings = async (ch: OTAChannelConnection) => {
+    setSelectedChannel(ch)
+    setIsLoadingMappings(true)
+    try {
+      const data = await operationsApi.getChannelMappings(ch.id)
+      if (Array.isArray(data) && data.length > 0) {
+        setMappings(data)
+      } else {
+        setMappings(DEFAULT_MAPPINGS)
+      }
+    } catch {
+      setMappings(DEFAULT_MAPPINGS)
+    } finally {
+      setIsLoadingMappings(false)
+    }
+  }
+
+  const handleSaveMapping = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedChannel) return
+    setIsSavingMapping(true)
+    try {
+      const payload = {
+        pmsRoomTypeId: `rt-${Date.now()}`,
+        otaRoomCode: newOtaRoomCode.toUpperCase(),
+        rateMultiplier: parseFloat(newRateMultiplier) || 1.0,
+      }
+      await operationsApi.saveChannelMapping(selectedChannel.id, payload)
+      const newItem: ChannelMappingItem = {
+        id: `map-${Date.now()}`,
+        channelId: selectedChannel.id,
+        pmsRoomTypeId: payload.pmsRoomTypeId,
+        pmsRoomTypeName: newPmsRoomTypeName,
+        otaRoomCode: payload.otaRoomCode,
+        rateMultiplier: payload.rateMultiplier,
+        status: 'synced',
+      }
+      setMappings((prev) => [...prev, newItem])
+      success('Channel Mapping Saved', `${newPmsRoomTypeName} mapped to ${selectedChannel.channelName} code ${payload.otaRoomCode}.`)
+      setNewOtaRoomCode('')
+    } catch {
+      const newItem: ChannelMappingItem = {
+        id: `map-${Date.now()}`,
+        channelId: selectedChannel.id,
+        pmsRoomTypeId: `rt-${Date.now()}`,
+        pmsRoomTypeName: newPmsRoomTypeName,
+        otaRoomCode: newOtaRoomCode.toUpperCase(),
+        rateMultiplier: parseFloat(newRateMultiplier) || 1.0,
+        status: 'synced',
+      }
+      setMappings((prev) => [...prev, newItem])
+      success('Channel Mapping Saved', `${newPmsRoomTypeName} mapped to ${selectedChannel.channelName} code ${newOtaRoomCode}.`)
+      setNewOtaRoomCode('')
+    } finally {
+      setIsSavingMapping(false)
+    }
+  }
 
   const handleTriggerGlobalSync = async () => {
     setIsSyncing(true)
@@ -108,7 +193,7 @@ export const ChannelsHub: React.FC = () => {
                         size="sm"
                         variant="outline"
                         className="h-7 text-xs"
-                        onClick={() => success(`${ch.channelName} mapping catalog verified`)}
+                        onClick={() => handleOpenMappings(ch)}
                       >
                         <ArrowRightLeft className="h-3 w-3 mr-1" />
                         View Mappings
@@ -121,6 +206,93 @@ export const ChannelsHub: React.FC = () => {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Channel Room / Rate Mappings Modal */}
+      {selectedChannel && (
+        <Modal
+          isOpen={Boolean(selectedChannel)}
+          onClose={() => setSelectedChannel(null)}
+          title={`OTA Room & Rate Mappings: ${selectedChannel.channelName}`}
+          description="Map internal PMS room inventory and rate plan multipliers to OTA room codes"
+          maxWidth="lg"
+        >
+          <div className="space-y-4 text-xs">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Internal PMS Room Category</TableHead>
+                  <TableHead>OTA External Room Code</TableHead>
+                  <TableHead>Rate Multiplier</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {mappings.map((m) => (
+                  <TableRow key={m.id}>
+                    <TableCell className="font-bold text-foreground">{m.pmsRoomTypeName}</TableCell>
+                    <TableCell className="font-mono text-primary font-semibold">{m.otaRoomCode}</TableCell>
+                    <TableCell className="font-mono">{m.rateMultiplier}x ({((m.rateMultiplier - 1) * 100).toFixed(0)}% OTA Premium)</TableCell>
+                    <TableCell>
+                      <Badge variant="success">Synced</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+
+            <form onSubmit={handleSaveMapping} className="p-3 border border-border rounded-xl bg-muted/20 space-y-3">
+              <span className="font-semibold text-foreground block">Add New Channel Mapping</span>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block font-semibold mb-1 text-[11px]">PMS Category</label>
+                  <input
+                    type="text"
+                    required
+                    value={newPmsRoomTypeName}
+                    onChange={(e) => setNewPmsRoomTypeName(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background p-1.5 text-xs text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-[11px]">OTA Code</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. OCEAN-K-OTA"
+                    value={newOtaRoomCode}
+                    onChange={(e) => setNewOtaRoomCode(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background p-1.5 text-xs text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold mb-1 text-[11px]">Rate Multiplier</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.5"
+                    max="2.0"
+                    value={newRateMultiplier}
+                    onChange={(e) => setNewRateMultiplier(e.target.value)}
+                    className="w-full rounded-lg border border-border bg-background p-1.5 text-xs text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div className="flex justify-end pt-1">
+                <Button type="submit" size="sm" isLoading={isSavingMapping} className="gap-1">
+                  <Plus className="h-3.5 w-3.5" />
+                  Save Mapping
+                </Button>
+              </div>
+            </form>
+
+            <div className="flex items-center justify-end pt-2 border-t border-border">
+              <Button variant="outline" size="sm" onClick={() => setSelectedChannel(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }

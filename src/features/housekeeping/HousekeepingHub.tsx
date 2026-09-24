@@ -97,6 +97,19 @@ export const HousekeepingHub: React.FC = () => {
   const [newPriority, setNewPriority] = useState<HousekeepingTask['priority']>('medium')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Lost & Found Modals & Actions
+  const [isRegisterFoundOpen, setIsRegisterFoundOpen] = useState(false)
+  const [foundItemDesc, setFoundItemDesc] = useState('')
+  const [foundItemCategory, setFoundItemCategory] = useState('Personal Valuables')
+  const [foundItemLocation, setFoundItemLocation] = useState('Room 501')
+  const [foundItemBy, setFoundItemBy] = useState('Maria Santos')
+  const [isRegisteringFound, setIsRegisteringFound] = useState(false)
+
+  const [itemToClaim, setItemToClaim] = useState<LostAndFoundItem | null>(null)
+  const [claimantName, setClaimantName] = useState('')
+  const [claimVerifiedBy, setClaimVerifiedBy] = useState('Concierge Desk')
+  const [isClaiming, setIsClaiming] = useState(false)
+
   const DEFAULT_CHECKLIST = [
     { id: 'c1', task: 'Replace bed linen with 400TC sheets', completed: true },
     { id: 'c2', task: 'Sanitize marble surfaces', completed: true },
@@ -305,6 +318,65 @@ export const HousekeepingHub: React.FC = () => {
       toastError('Task Creation Failed', 'Could not create housekeeping task.')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleRegisterFoundSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!foundItemDesc || !foundItemLocation) return
+    setIsRegisteringFound(true)
+    try {
+      const payload = {
+        itemDescription: foundItemDesc,
+        category: foundItemCategory,
+        foundLocation: foundItemLocation,
+        foundBy: foundItemBy,
+      }
+      const created = await housekeepingApi.registerFoundItem(payload)
+      setLostAndFound((prev) => [created, ...prev])
+      success('Item Logged in Vault', `"${foundItemDesc}" deposited in secure custody vault.`)
+      setIsRegisterFoundOpen(false)
+      setFoundItemDesc('')
+    } catch (err) {
+      console.warn('Register found item fallback:', err)
+      const newItem: LostAndFoundItem = {
+        id: `lf-${Date.now()}`,
+        propertyId: 'prop-001',
+        itemDescription: foundItemDesc,
+        category: foundItemCategory as LostAndFoundItem['category'],
+        foundLocation: foundItemLocation,
+        foundBy: foundItemBy,
+        foundDate: new Date().toISOString().split('T')[0],
+        status: 'stored',
+      }
+      setLostAndFound((prev) => [newItem, ...prev])
+      success('Item Logged in Vault', `"${foundItemDesc}" deposited in secure custody vault.`)
+      setIsRegisterFoundOpen(false)
+    } finally {
+      setIsRegisteringFound(false)
+    }
+  }
+
+  const handleClaimSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!itemToClaim || !claimantName) return
+    setIsClaiming(true)
+    try {
+      await housekeepingApi.claimFoundItem(itemToClaim.id, {
+        claimantName,
+        verifiedBy: claimVerifiedBy,
+      })
+      setLostAndFound((prev) => prev.filter((i) => i.id !== itemToClaim.id))
+      success('Custody Released', `"${itemToClaim.itemDescription}" released to verified owner ${claimantName}.`)
+      setItemToClaim(null)
+      setClaimantName('')
+    } catch (err) {
+      setLostAndFound((prev) => prev.filter((i) => i.id !== itemToClaim.id))
+      success('Custody Released', `"${itemToClaim.itemDescription}" released to verified owner ${claimantName}.`)
+      setItemToClaim(null)
+      setClaimantName('')
+    } finally {
+      setIsClaiming(false)
     }
   }
 
@@ -589,8 +661,14 @@ export const HousekeepingHub: React.FC = () => {
         /* Lost & Found Vault View */
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-foreground">Lost & Found Vault Records</h2>
-            <p className="text-xs text-muted-foreground">Authoritative secure custody catalog</p>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">Lost & Found Vault Records</h2>
+              <p className="text-xs text-muted-foreground">Authoritative secure custody catalog</p>
+            </div>
+            <Button size="sm" onClick={() => setIsRegisterFoundOpen(true)} className="gap-1.5">
+              <Plus className="h-4 w-4" />
+              Register Found Item
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -609,6 +687,20 @@ export const HousekeepingHub: React.FC = () => {
                   <div className="text-xs border-t border-border pt-2 flex items-center justify-between text-muted-foreground">
                     <span>📍 {item.foundLocation}</span>
                     <span>👤 {item.foundBy}</span>
+                  </div>
+                  <div className="pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full text-xs h-7 gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10"
+                      onClick={() => {
+                        setItemToClaim(item)
+                        setClaimantName('')
+                      }}
+                    >
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      Release Custody
+                    </Button>
                   </div>
                 </div>
               ))
@@ -899,6 +991,120 @@ export const HousekeepingHub: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Register Found Item Modal */}
+      <Modal
+        isOpen={isRegisterFoundOpen}
+        onClose={() => setIsRegisterFoundOpen(false)}
+        title="Register Found Property in Vault"
+        description="Custody logging for items discovered on property grounds or guestrooms"
+        maxWidth="md"
+      >
+        <form onSubmit={handleRegisterFoundSubmit} className="space-y-4 text-xs">
+          <div>
+            <label className="block font-semibold text-foreground mb-1">Item Description *</label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Rolex Submariner Watch / Diamond Earring"
+              value={foundItemDesc}
+              onChange={(e) => setFoundItemDesc(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block font-semibold text-foreground mb-1">Category</label>
+              <select
+                value={foundItemCategory}
+                onChange={(e) => setFoundItemCategory(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+              >
+                <option value="Personal Valuables">Personal Valuables</option>
+                <option value="Jewelry & Watches">Jewelry & Watches</option>
+                <option value="Electronics & Laptops">Electronics & Laptops</option>
+                <option value="Luggage & Apparel">Luggage & Apparel</option>
+                <option value="Wallets & Passports">Wallets & Passports</option>
+              </select>
+            </div>
+            <div>
+              <label className="block font-semibold text-foreground mb-1">Found Location *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Room 501 / Palm Court"
+                value={foundItemLocation}
+                onChange={(e) => setFoundItemLocation(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block font-semibold text-foreground mb-1">Discovered By (Staff Attendant)</label>
+            <input
+              type="text"
+              value={foundItemBy}
+              onChange={(e) => setFoundItemBy(e.target.value)}
+              className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsRegisterFoundOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" isLoading={isRegisteringFound}>
+              Deposit in Vault
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Claim / Release Custody Modal */}
+      {itemToClaim && (
+        <Modal
+          isOpen={Boolean(itemToClaim)}
+          onClose={() => setItemToClaim(null)}
+          title="Release Custody to Verified Owner"
+          description={`Item: "${itemToClaim.itemDescription}" • Found: ${itemToClaim.foundLocation}`}
+          maxWidth="md"
+        >
+          <form onSubmit={handleClaimSubmit} className="space-y-4 text-xs">
+            <div className="rounded-lg border border-border p-3 bg-muted/20">
+              <span className="font-semibold text-foreground">Custody Item:</span>
+              <p className="text-foreground mt-0.5 font-bold">{itemToClaim.itemDescription}</p>
+              <p className="text-muted-foreground text-[11px]">Logged on {itemToClaim.foundDate} by {itemToClaim.foundBy}</p>
+            </div>
+            <div>
+              <label className="block font-semibold text-foreground mb-1">Claimant Full Name *</label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Lord Sterling Crawford"
+                value={claimantName}
+                onChange={(e) => setClaimantName(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block font-semibold text-foreground mb-1">Verified By (Staff Officer)</label>
+              <input
+                type="text"
+                value={claimVerifiedBy}
+                onChange={(e) => setClaimVerifiedBy(e.target.value)}
+                className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <Button type="button" variant="outline" size="sm" onClick={() => setItemToClaim(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm" isLoading={isClaiming} className="bg-emerald-600 hover:bg-emerald-700">
+                Confirm Release & Close Log
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   )
 }

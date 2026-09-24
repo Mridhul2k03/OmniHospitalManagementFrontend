@@ -298,7 +298,7 @@ export const AdminLoginView: React.FC = () => {
           <span className="text-[11px] text-foreground font-medium">Django Backend Administration</span>
         </div>
         <a
-          href="http://localhost:8000/admin/"
+          href={`${import.meta.env.VITE_BACKEND_URL || 'https://3lrrk4tb-8000.inc1.devtunnels.ms'}/admin/`}
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-500 hover:underline"

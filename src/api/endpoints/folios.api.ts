@@ -68,9 +68,10 @@ const normalizeFolio = (f: any): Folio => {
 
 export const foliosApi = {
   // Get all folios for the active property
-  getFolios: async (status?: 'open' | 'closed' | 'voided'): Promise<Folio[]> => {
+  getFolios: async (params?: { roomNumber?: string; status?: string; search?: string } | 'open' | 'closed' | 'voided'): Promise<Folio[]> => {
+    const queryParams = typeof params === 'string' ? { status: params.toUpperCase() } : params
     const response = await apiClient.get<any>('/folios/', {
-      params: status ? { status: status.toUpperCase() } : undefined,
+      params: queryParams,
     })
     const list = Array.isArray(response.data) ? response.data : (response.data?.data || response.data?.results || [])
     return list.map(normalizeFolio)
@@ -82,8 +83,17 @@ export const foliosApi = {
     return normalizeFolio(response.data)
   },
 
+  // Alias for getFolioById
+  getFolioDetails: async (id: string): Promise<Folio> => {
+    const response = await apiClient.get<any>(`/folios/${id}/`)
+    return normalizeFolio(response.data)
+  },
+
   // Post a line charge to a folio
-  postCharge: async (folioId: string, payload: PostChargePayload): Promise<FolioCharge> => {
+  postCharge: async (
+    folioId: string,
+    payload: { department: string; description: string; amount: number; taxRate?: number; referenceNumber?: string }
+  ): Promise<FolioCharge> => {
     const response = await apiClient.post<any>(`/folios/${folioId}/charges/`, {
       source: payload.department.toUpperCase(),
       description: payload.description,
@@ -120,7 +130,7 @@ export const foliosApi = {
     )
     const item = response.data?.voidedCharge || response.data?.charge_event || {}
     return {
-      message: response.data.message || 'Charge voided',
+      message: response.data?.message || 'Charge voided',
       voidedCharge: {
         id: item.id || chargeId,
         folioId,
@@ -140,22 +150,59 @@ export const foliosApi = {
   },
 
   // Record settlement payment
-  settlePayment: async (folioId: string, payload: SettlePaymentPayload): Promise<FolioPayment> => {
+  settlePayment: async (
+    folioId: string,
+    payload: { amount: number; paymentMethod?: string; method?: string; transactionReference?: string }
+  ): Promise<FolioPayment> => {
+    const method = (payload.paymentMethod || payload.method || 'credit_card').toUpperCase()
     const response = await apiClient.post<any>(`/folios/${folioId}/payments/`, {
       amount: payload.amount,
-      method: payload.method.toUpperCase(),
+      method,
+      paymentMethod: method,
       transactionReference: payload.transactionReference || `TXN-${Date.now()}`,
     })
     return {
       id: response.data?.payment_id || `pay-${Date.now()}`,
       folioId,
-      paymentMethod: payload.method as any,
+      paymentMethod: (payload.paymentMethod || payload.method || 'credit_card') as any,
       amount: payload.amount,
       transactionReference: payload.transactionReference || `TXN-${Date.now()}`,
       timestamp: new Date().toISOString(),
       processedBy: 'Front Desk',
       status: 'settled',
     }
+  },
+
+  // Tax Invoice PDF streaming download
+  downloadInvoicePdf: async (id: string, filename = `Folio-${id}.pdf`): Promise<void> => {
+    const res = await apiClient.get<any>(`/folios/${id}/invoice-pdf/`, { responseType: 'blob' })
+    const blobData = res && (res as any).data instanceof Blob ? (res as any).data : (res as any)
+    const url = window.URL.createObjectURL(blobData instanceof Blob ? blobData : new Blob([blobData], { type: 'application/pdf' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', filename)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+  },
+
+  // Daily Night Audit ledger closing
+  runNightAudit: async (): Promise<any> => {
+    const response = await apiClient.post<any>('/folios/night-audit/')
+    return response.data
+  },
+
+  // General Ledger CSV Export (Bridges FinanceHub "Export GL CSV" button)
+  exportGeneralLedgerCsv: async (): Promise<void> => {
+    const res = await apiClient.get<any>('/finance/gl-export/', { responseType: 'blob' })
+    const blobData = res && (res as any).data instanceof Blob ? (res as any).data : (res as any)
+    const url = window.URL.createObjectURL(blobData instanceof Blob ? blobData : new Blob([blobData], { type: 'text/csv' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.setAttribute('download', `GL-Export-${new Date().toISOString().split('T')[0]}.csv`)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
   },
 
   // Close and archive folio

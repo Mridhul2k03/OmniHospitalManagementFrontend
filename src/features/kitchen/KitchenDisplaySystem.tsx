@@ -6,6 +6,7 @@ import { useToast } from '@/components/ui/toast'
 import { useAuth } from '@/auth/useAuth'
 import { KitchenOrderTicket, KOTStatus } from '@/types'
 import { kotApi } from '@/api/endpoints/kot.api'
+import { useHotelWebSocket } from '@/hooks/useWebSocket'
 import {
   Flame,
   Clock,
@@ -13,11 +14,13 @@ import {
   ChevronRight,
   Plus,
   RefreshCw,
+  Radio,
 } from 'lucide-react'
 
 export const KitchenDisplaySystem: React.FC = () => {
   const { success, warning, error: toastError } = useToast()
   const { hasRole, user } = useAuth()
+  const { isConnected: isWsConnected, lastMessage } = useHotelWebSocket()
   const [tickets, setTickets] = useState<KitchenOrderTicket[]>([])
   const [stationFilter, setStationFilter] = useState<'All' | 'Grill' | 'Sauté' | 'Salad' | 'Bar'>('All')
   const [cancelTicket, setCancelTicket] = useState<KitchenOrderTicket | null>(null)
@@ -92,6 +95,40 @@ export const KitchenDisplaySystem: React.FC = () => {
   useEffect(() => {
     loadOrders()
   }, [loadOrders])
+
+  // Handle incoming real-time WebSocket events from Django Channels gateway
+  useEffect(() => {
+    if (!lastMessage) return
+
+    if (
+      lastMessage.type === 'KOT_ORDER_FIRED' ||
+      lastMessage.type === 'KOT_ORDER_CREATED' ||
+      lastMessage.type === 'kot_order_fired'
+    ) {
+      const normalized = normalizeOrder(lastMessage.data)
+      setTickets((prev) => [normalized, ...prev.filter((t) => t.id !== normalized.id)])
+      success(
+        'Real-Time Order Fired',
+        `New ticket #${normalized.ticketNumber} arrived for ${normalized.tableNumber || 'room'}.`
+      )
+    } else if (
+      lastMessage.type === 'KOT_STATUS_CHANGED' ||
+      lastMessage.type === 'kot_status_changed'
+    ) {
+      const payload = lastMessage.data || {}
+      const targetId = payload.id || payload.orderId || payload.ticketId
+      const newStatus = (payload.status || '').toLowerCase()
+      if (targetId && newStatus) {
+        setTickets((prev) =>
+          prev.map((t) =>
+            t.id === targetId || t.ticketNumber === payload.ticketNumber
+              ? { ...t, status: newStatus as KOTStatus }
+              : t
+          )
+        )
+      }
+    }
+  }, [lastMessage, success])
 
   // Simulation timer incrementing elapsed time every minute
   useEffect(() => {
@@ -221,6 +258,19 @@ export const KitchenDisplaySystem: React.FC = () => {
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-rose-500" />
               &gt;20m Delayed
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold ${
+                isWsConnected
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'
+              }`}
+            >
+              <Radio className={`h-3 w-3 ${isWsConnected ? 'text-emerald-400 animate-pulse' : 'text-amber-400'}`} />
+              <span>{isWsConnected ? 'Live WS Connected' : 'WS Connecting...'}</span>
             </span>
           </div>
 

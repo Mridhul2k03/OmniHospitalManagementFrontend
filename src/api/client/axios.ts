@@ -32,9 +32,9 @@ apiClient.interceptors.request.use(
     if (!config.headers) return config
 
     // Multi-Tenancy: Attach X-Tenant-ID header
-    const activeTenantSlug = localStorage.getItem('omni_active_tenant_slug')
     const activeTenantId = localStorage.getItem('omni_active_tenant_id')
-    const tenantId = activeTenantSlug || activeTenantId || 'oxford-crest'
+    const activeTenantSlug = localStorage.getItem('omni_active_tenant_slug')
+    const tenantId = activeTenantId || activeTenantSlug || import.meta.env.VITE_DEFAULT_TENANT_ID || 'oxford-crest'
 
     config.headers['X-Tenant-ID'] = tenantId
 
@@ -65,6 +65,11 @@ apiClient.interceptors.request.use(
 // Response Interceptor: Normalized DRF Envelope Handling & Cookie-Based Token Refresh
 apiClient.interceptors.response.use(
   (response) => {
+    // Binary file downloads (PDF, CSV) bypass envelope unpacking
+    if (response.config.responseType === 'blob') {
+      return response
+    }
+
     // If backend returns the standard envelope { success: true, data: ..., meta: ... },
     // unpack data to response.data and attach metadata
     if (response.data && typeof response.data === 'object' && response.data.success === true && 'data' in response.data) {

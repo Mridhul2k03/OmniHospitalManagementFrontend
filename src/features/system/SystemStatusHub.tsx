@@ -302,7 +302,7 @@ export const SystemStatusHub: React.FC = () => {
 
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <span className="rounded-md bg-background px-2.5 py-1 border border-border text-muted-foreground">
-                Base URL: <code className="text-foreground font-mono">http://127.0.0.1:8000/api/v1</code>
+                Base URL: <code className="text-foreground font-mono">{import.meta.env.VITE_BACKEND_URL || 'https://3lrrk4tb-8000.inc1.devtunnels.ms'}/api/v1</code>
               </span>
               <span className="rounded-md bg-emerald-500/10 px-2.5 py-1 text-emerald-600 font-semibold flex items-center gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5" /> DRF Connected
@@ -457,7 +457,7 @@ export const SystemStatusHub: React.FC = () => {
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Dev Proxy Binding</span>
-              <span className="font-mono text-emerald-600 font-medium">Vite :5173 ➔ Django :8000</span>
+              <span className="font-mono text-emerald-600 font-medium">Vite :5173 ➔ {import.meta.env.VITE_BACKEND_URL ? import.meta.env.VITE_BACKEND_URL.replace('https://', '') : 'DevTunnel'}</span>
             </div>
           </CardContent>
         </Card>

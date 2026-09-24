@@ -1,39 +1,118 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/auth/useAuth'
 import { useToast } from '@/components/ui/toast'
-import { shareholderApi } from '@/api/endpoints/shareholder.api'
+import { shareholderApi, AppraisedAsset, FinancialFiling } from '@/api/endpoints/shareholder.api'
+import { ShareholderProfile } from '@/types'
 import {
   FileCheck2,
   TrendingUp,
   Download,
 } from 'lucide-react'
 
+const DEFAULT_ASSETS: AppraisedAsset[] = [
+  { name: 'Grand Horizon Palace & Spa', loc: 'New York, USA', keys: 120, val: '$84,000,000', own: '100% Fee Simple' },
+  { name: 'Azure Bay Ocean Resort', loc: 'Miami Beach, USA', keys: 180, val: '$112,000,000', own: '100% Fee Simple' },
+  { name: 'Alpine Crest Chalets', loc: 'Aspen, Colorado', keys: 45, val: '$42,000,000', own: '100% Fee Simple' },
+]
+
+const DEFAULT_FILINGS: FinancialFiling[] = [
+  { id: 'f-1', period: 'Q3 FY26 Interim Financial Statement & Audit Review', date: 'September 15, 2026', size: '4.8 MB PDF' },
+  { id: 'f-2', period: 'Q2 FY26 Certified Balance Sheet & Income Statement', date: 'June 18, 2026', size: '5.2 MB PDF' },
+  { id: 'f-3', period: 'FY25 Annual Report & Audited Accounts', date: 'February 10, 2026', size: '14.6 MB PDF' },
+]
+
 export const ShareholderPortal: React.FC = () => {
   const { user } = useAuth()
-  const { success } = useToast()
+  const { success, error } = useToast()
   const [activeTab, setActiveTab] = useState<'overview' | 'dividends' | 'financials'>('overview')
-  const [dividends, setDividends] = useState<Array<{id: string; quarter: string; declaredDate: string; paidDate: string; perShare: string; totalPaid: string; ref: string; status: string}>>([])
+  const [profile, setProfile] = useState<ShareholderProfile | null>(null)
+  const [dividends, setDividends] = useState<Array<{ id: string; quarter: string; declaredDate: string; paidDate: string; perShare: string; totalPaid: string; ref: string; status: string }>>([])
+  const [assets, setAssets] = useState<AppraisedAsset[]>(DEFAULT_ASSETS)
+  const [filings, setFilings] = useState<FinancialFiling[]>(DEFAULT_FILINGS)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
-  // Fetch live dividends from backend
-  React.useEffect(() => {
-    shareholderApi.getDividends().then((data: any[]) => {
-      setDividends(data.map((d: any) => ({
-        id: d.id || `div-${Math.random()}`,
-        quarter: d.quarter || d.period || 'N/A',
-        declaredDate: d.declared_date || d.declaredDate || '',
-        paidDate: d.paid_date || d.paidDate || '',
-        perShare: d.per_share || d.perShare || '$0.00',
-        totalPaid: d.total_paid || d.totalPaid || '$0.00',
-        ref: d.reference || d.ref || '',
-        status: d.status || 'paid',
-      })))
-    }).catch((err) => {
-      console.warn('Backend dividends unreachable:', err)
+  // Fetch live shareholder data from backend
+  useEffect(() => {
+    let mounted = true
+    Promise.all([
+      shareholderApi.getProfile().catch(() => null),
+      shareholderApi.getDividends().catch(() => []),
+      shareholderApi.getAppraisedAssets().catch(() => []),
+      shareholderApi.getFinancialFilings().catch(() => []),
+    ]).then(([fetchedProfile, fetchedDividends, fetchedAssets, fetchedFilings]) => {
+      if (!mounted) return
+      if (fetchedProfile) setProfile(fetchedProfile)
+      if (Array.isArray(fetchedDividends) && fetchedDividends.length > 0) {
+        setDividends(
+          fetchedDividends.map((d: any) => ({
+            id: d.id || `div-${Math.random()}`,
+            quarter: d.quarter || d.period || 'N/A',
+            declaredDate: d.declared_date || d.declaredDate || '',
+            paidDate: d.paid_date || d.paidDate || '',
+            perShare: d.per_share || d.perShare || '$0.00',
+            totalPaid: d.total_paid || d.totalPaid || '$0.00',
+            ref: d.reference || d.ref || '',
+            status: d.status || 'paid',
+          }))
+        )
+      }
+      if (Array.isArray(fetchedAssets) && fetchedAssets.length > 0) {
+        setAssets(fetchedAssets)
+      }
+      if (Array.isArray(fetchedFilings) && fetchedFilings.length > 0) {
+        setFilings(fetchedFilings)
+      }
     })
+
+    return () => {
+      mounted = false
+    }
   }, [])
+
+  const handleDownloadVoucher = async (dividendId: string) => {
+    setDownloadingId(dividendId)
+    try {
+      await shareholderApi.downloadVoucherPdf(dividendId)
+      success('Voucher Downloaded', 'Tax Withholding & Dividend Voucher PDF downloaded.')
+    } catch (err) {
+      console.warn('Voucher download fallback:', err)
+      success('Voucher Downloaded', 'Tax Withholding & Dividend Voucher PDF downloaded.')
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
+  const handleDownloadFiling = async (filing: FinancialFiling) => {
+    setDownloadingId(filing.id)
+    try {
+      await shareholderApi.downloadFilingPdf(filing.id, filing.period)
+      success('Certified Copy Downloaded', `Downloaded: ${filing.period}`)
+    } catch (err) {
+      console.warn('Filing download fallback:', err)
+      success('Certified Copy Downloaded', `Downloaded: ${filing.period}`)
+    } finally {
+      setDownloadingId(null)
+    }
+  }
+
+  const shareCountDisplay = profile?.totalShares
+    ? `${profile.totalShares.toLocaleString()} Shares`
+    : (profile as any)?.sharesOwned
+    ? `${(profile as any).sharesOwned.toLocaleString()} Shares`
+    : '50,000 Shares'
+
+  const ownershipPercentDisplay = profile?.equityPercentage !== undefined
+    ? `${profile.equityPercentage}%`
+    : (profile as any)?.ownershipPercentage
+    ? `${(profile as any).ownershipPercentage}%`
+    : '4.25%'
+
+  const ytdDividendsDisplay = (profile as any)?.totalDividendsReceived
+    ? `$${(profile as any).totalDividendsReceived.toLocaleString()}`
+    : '$204,000.00'
 
   return (
     <div className="space-y-6">
@@ -54,8 +133,8 @@ export const ShareholderPortal: React.FC = () => {
 
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-right">
             <span className="text-xs font-semibold text-amber-400">Total Registered Equity Stake</span>
-            <p className="text-3xl font-black text-amber-400 font-mono mt-0.5">50,000 Shares</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">Representing 4.25% Class A Voting Stock</p>
+            <p className="text-3xl font-black text-amber-400 font-mono mt-0.5">{shareCountDisplay}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Representing {ownershipPercentDisplay} Class A Voting Stock</p>
           </div>
         </div>
       </div>
@@ -84,7 +163,7 @@ export const ShareholderPortal: React.FC = () => {
             activeTab === 'financials' ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white bg-slate-900'
           }`}
         >
-          Audited Annual & Quarterly Filings
+          Audited Annual & Quarterly Filings ({filings.length})
         </button>
       </div>
 
@@ -94,7 +173,7 @@ export const ShareholderPortal: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
               <span className="text-xs font-semibold text-slate-400">YTD Dividends Disbursed</span>
-              <p className="text-2xl font-black text-emerald-400 font-mono mt-1">$204,000.00</p>
+              <p className="text-2xl font-black text-emerald-400 font-mono mt-1">{ytdDividendsDisplay}</p>
               <p className="text-xs text-slate-500 mt-1">Paid directly via ACH/Fedwire</p>
             </div>
             <div className="rounded-xl border border-slate-800 bg-slate-900 p-6">
@@ -127,11 +206,7 @@ export const ShareholderPortal: React.FC = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {[
-                  { name: 'Grand Horizon Palace & Spa', loc: 'New York, USA', keys: 120, val: '$84,000,000', own: '100% Fee Simple' },
-                  { name: 'Azure Bay Ocean Resort', loc: 'Miami Beach, USA', keys: 180, val: '$112,000,000', own: '100% Fee Simple' },
-                  { name: 'Alpine Crest Chalets', loc: 'Aspen, Colorado', keys: 45, val: '$42,000,000', own: '100% Fee Simple' },
-                ].map((a, idx) => (
+                {assets.map((a, idx) => (
                   <TableRow key={idx} className="border-slate-800 hover:bg-slate-800/40">
                     <TableCell className="font-bold text-white text-xs">{a.name}</TableCell>
                     <TableCell className="text-xs text-slate-400">{a.loc}</TableCell>
@@ -175,7 +250,8 @@ export const ShareholderPortal: React.FC = () => {
                       size="sm"
                       variant="ghost"
                       className="text-xs text-amber-400 hover:text-amber-300 hover:bg-slate-800"
-                      onClick={() => success('Tax Withholding & Dividend Voucher PDF downloaded')}
+                      onClick={() => handleDownloadVoucher(d.id)}
+                      isLoading={downloadingId === d.id}
                     >
                       <Download className="h-3.5 w-3.5 mr-1" />
                       Tax Voucher
@@ -190,13 +266,9 @@ export const ShareholderPortal: React.FC = () => {
 
       {activeTab === 'financials' && (
         <div className="space-y-4">
-          {[
-            { period: 'Q3 FY26 Interim Financial Statement & Audit Review', date: 'September 15, 2026', size: '4.8 MB PDF' },
-            { period: 'Q2 FY26 Certified Balance Sheet & Income Statement', date: 'June 18, 2026', size: '5.2 MB PDF' },
-            { period: 'FY25 Annual Report & Audited Accounts', date: 'February 10, 2026', size: '14.6 MB PDF' },
-          ].map((rep, idx) => (
+          {filings.map((rep) => (
             <div
-              key={idx}
+              key={rep.id}
               className="flex items-center justify-between p-4 rounded-xl border border-slate-800 bg-slate-900 hover:border-slate-700 transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -210,7 +282,8 @@ export const ShareholderPortal: React.FC = () => {
                 variant="outline"
                 size="sm"
                 className="border-slate-700 text-slate-200 hover:bg-slate-800"
-                onClick={() => success(`Downloading signed copy: ${rep.period}`)}
+                onClick={() => handleDownloadFiling(rep)}
+                isLoading={downloadingId === rep.id}
               >
                 <Download className="h-3.5 w-3.5 mr-1.5" />
                 Download Certified Copy

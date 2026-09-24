@@ -96,4 +96,27 @@ export const propertiesApi = {
     const response = await apiClient.patch<Property>(`/properties/${propertyId}/`, data)
     return response.data
   },
+
+  // Fetch operational policies & tax configuration
+  getPolicies: async (propertyId: string): Promise<any> => {
+    const response = await apiClient.get<any>(`/properties/${propertyId}/policies/`)
+    return response.data
+  },
+
+  // Persists policies from SettingsHub.tsx
+  updatePolicies: async (
+    propertyId: string,
+    policies: {
+      checkInTime?: string
+      checkOutTime?: string
+      stateTaxRate?: number
+      cityUnitFee?: number
+      name?: string
+      phone?: string
+      email?: string
+    }
+  ): Promise<any> => {
+    const response = await apiClient.patch<any>(`/properties/${propertyId}/policies/`, policies)
+    return response.data
+  },
 }

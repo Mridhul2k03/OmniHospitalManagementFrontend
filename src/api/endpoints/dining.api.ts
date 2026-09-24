@@ -81,9 +81,31 @@ export const diningApi = {
     return response.data
   },
 
+  // Fetch menu (alias for getMenuItems)
+  getMenu: async (): Promise<MenuItem[]> => {
+    try {
+      const response = await apiClient.get<any>('/dining/menu/')
+      return Array.isArray(response.data) ? response.data : (response.data?.data || response.data?.results || [])
+    } catch {
+      const response = await apiClient.get<MenuItem[]>('/dining/menu-items/')
+      return response.data || []
+    }
+  },
+
   // Fire order and dispatch KOT tickets to kitchen stations
   createOrder: async (payload: CreateOrderPayload): Promise<KOTOrder> => {
     const response = await apiClient.post<KOTOrder>('/dining/orders/', payload)
+    return response.data
+  },
+
+  // Firing orders to KDS (Recipe / specification method)
+  fireKOTOrder: async (payload: {
+    tableNumber: string
+    roomNumber?: string
+    serverName?: string
+    items: Array<{ menuItemId?: string; name: string; quantity: number; specialInstructions?: string; station: string }>
+  }): Promise<any> => {
+    const response = await apiClient.post<any>('/dining/orders/kot/', payload)
     return response.data
   },
 
@@ -96,6 +118,12 @@ export const diningApi = {
       `/dining/orders/${orderId}/post-to-room/`,
       payload
     )
+    return response.data
+  },
+
+  // Room folio charge posting (specification method)
+  postDiningToRoomFolio: async (payload: { roomNumber: string; amount: number; tip?: number; orderNumber: string }): Promise<any> => {
+    const response = await apiClient.post<any>('/dining/orders/folio/', payload)
     return response.data
   },
 }

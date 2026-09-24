@@ -12,6 +12,9 @@ export * from './executive.api'
 export * from './auth.api'
 export * from './superadmin.api'
 export * from './operations.api'
+export * from './pricing.api'
+export * from './loyalty.api'
+export * from './guests.api'
 
 // Canonical TanStack Query Cache Keys for reliable multi-tenant invalidation
 export const QUERY_KEYS = {

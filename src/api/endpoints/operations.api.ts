@@ -131,3 +131,62 @@ export const hrApi = {
     return res.data
   },
 }
+
+export const operationsApi = {
+  // Venues & Events
+  getVenues: async (): Promise<BanquetVenue[]> => {
+    const res = await apiClient.get<any>('/events/venues/')
+    return Array.isArray(res.data) ? res.data : (res.data?.data || res.data?.results || [])
+  },
+  getEvents: async (): Promise<BanquetEvent[]> => {
+    const res = await apiClient.get<any>('/events/')
+    return Array.isArray(res.data) ? res.data : (res.data?.data || res.data?.results || [])
+  },
+
+  // Bridges Master Folio modal displaying real BEO charges
+  getEventBEOFolio: async (eventId: string): Promise<{
+    eventId: string
+    venueRental: number
+    cateringPackage: number
+    roomBlockGuarantee: number
+    totalRevenue: number
+    items?: Array<{ name: string; amount: number; category: string }>
+  }> => {
+    const res = await apiClient.get<any>(`/events/${eventId}/folio/`)
+    return res.data
+  },
+
+  // OTA Channel Mappings bridge
+  getChannelMappings: async (channelId: string): Promise<Array<{
+    id: string
+    channelId: string
+    pmsRoomTypeId: string
+    pmsRoomTypeName: string
+    otaRoomCode: string
+    rateMultiplier: number
+    status: string
+  }>> => {
+    const res = await apiClient.get<any>(`/channels/${channelId}/mappings/`)
+    return Array.isArray(res.data) ? res.data : (res.data?.data || res.data?.results || [])
+  },
+
+  saveChannelMapping: async (channelId: string, payload: { pmsRoomTypeId: string; otaRoomCode: string; rateMultiplier?: number }): Promise<any> => {
+    const res = await apiClient.post<any>(`/channels/${channelId}/mappings/`, payload)
+    return res.data
+  },
+
+  // Inventory PO history
+  getPurchaseOrders: async (): Promise<Array<{
+    id: string
+    poNumber: string
+    itemName: string
+    quantity: number
+    status: string
+    supplierName: string
+    createdAt: string
+    totalCost: number
+  }>> => {
+    const res = await apiClient.get<any>('/inventory/po/')
+    return Array.isArray(res.data) ? res.data : (res.data?.data || res.data?.results || [])
+  },
+}

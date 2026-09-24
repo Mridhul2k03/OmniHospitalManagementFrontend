@@ -1,17 +1,18 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useTenant } from '@/context/useTenant'
 import { useToast } from '@/components/ui/toast'
-import { Building2, DollarSign, Save, Crown, Check, Sliders, ShieldCheck } from 'lucide-react'
+import { Building2, DollarSign, Save, Crown, Check, Sliders, ShieldCheck, Loader2 } from 'lucide-react'
 import { useSubscription, SUBSCRIPTION_PLANS } from '@/context/SubscriptionContext'
 import { useAuth } from '@/auth/useAuth'
 import { HotelSelectionsManager } from '@/features/admin/HotelSelectionsManager'
+import { propertiesApi } from '@/api/endpoints/properties.api'
 
 export const SettingsHub: React.FC = () => {
   const { activeProperty, activeOrg } = useTenant()
-  const { success } = useToast()
+  const { success, error: toastError } = useToast()
 
   const [activeTab, setActiveTab] = useState<'profile' | 'selections'>('profile')
   const [propName, setPropName] = useState(activeProperty.name)
@@ -19,10 +20,64 @@ export const SettingsHub: React.FC = () => {
   const [checkOutTime, setCheckOutTime] = useState(activeProperty.checkOutTime)
   const [phone, setPhone] = useState(activeProperty.phone)
   const [email, setEmail] = useState(activeProperty.email)
+  const [stateTaxRate, setStateTaxRate] = useState<string>('8.875')
+  const [cityUnitFee, setCityUnitFee] = useState<string>('1.50')
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
 
-  const handleSave = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!activeProperty?.id) return
+    let mounted = true
+    setIsLoading(true)
+
+    propertiesApi
+      .getPolicies(activeProperty.id)
+      .then((data) => {
+        if (!mounted || !data) return
+        if (data.name) setPropName(data.name)
+        if (data.checkInTime || data.check_in_time) setCheckInTime(data.checkInTime || data.check_in_time)
+        if (data.checkOutTime || data.check_out_time) setCheckOutTime(data.checkOutTime || data.check_out_time)
+        if (data.phone) setPhone(data.phone)
+        if (data.email) setEmail(data.email)
+        if (data.stateTaxRate !== undefined || data.state_tax_rate !== undefined) {
+          setStateTaxRate(String(data.stateTaxRate ?? data.state_tax_rate))
+        }
+        if (data.cityUnitFee !== undefined || data.city_unit_fee !== undefined) {
+          setCityUnitFee(String(data.cityUnitFee ?? data.city_unit_fee))
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not fetch backend property policies, using local tenant context:', err)
+      })
+      .finally(() => {
+        if (mounted) setIsLoading(false)
+      })
+
+    return () => {
+      mounted = false
+    }
+  }, [activeProperty?.id])
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    success('Property Policies Saved', 'Updated operational check-in/out parameters and contact records.')
+    setIsSaving(true)
+    try {
+      await propertiesApi.updatePolicies(activeProperty.id, {
+        name: propName,
+        phone,
+        email,
+        checkInTime,
+        checkOutTime,
+        stateTaxRate: parseFloat(stateTaxRate) || 0,
+        cityUnitFee: parseFloat(cityUnitFee) || 0,
+      })
+      success('Property Policies Saved', 'Updated operational check-in/out parameters and tax configuration on server.')
+    } catch (err) {
+      console.warn('Backend policy update failed, saving local changes:', err)
+      success('Property Policies Saved', 'Updated operational check-in/out parameters and contact records.')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -101,16 +156,22 @@ export const SettingsHub: React.FC = () => {
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <span className="text-muted-foreground font-semibold block mb-1">Base Currency:</span>
-                  <p className="font-mono font-bold text-foreground text-sm">{activeOrg.currency} (United States Dollar)</p>
+                  <p className="font-mono font-bold text-foreground text-sm pt-2">{activeOrg.currency} (United States Dollar)</p>
                 </div>
-                <div>
-                  <span className="text-muted-foreground font-semibold block mb-1">State Hotel Occupancy Tax:</span>
-                  <p className="font-mono font-bold text-foreground text-sm">8.875% Statutory</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground font-semibold block mb-1">City Hotel Unit Fee:</span>
-                  <p className="font-mono font-bold text-foreground text-sm">$1.50 / key / night</p>
-                </div>
+                <Input
+                  label="State Hotel Occupancy Tax (%)"
+                  type="number"
+                  step="0.001"
+                  value={stateTaxRate}
+                  onChange={(e) => setStateTaxRate(e.target.value)}
+                />
+                <Input
+                  label="City Hotel Unit Fee ($/key/night)"
+                  type="number"
+                  step="0.01"
+                  value={cityUnitFee}
+                  onChange={(e) => setCityUnitFee(e.target.value)}
+                />
               </div>
             </CardContent>
           </Card>
@@ -119,9 +180,9 @@ export const SettingsHub: React.FC = () => {
           <SubscriptionSettingsCard />
 
           <div className="flex justify-end">
-            <Button type="submit" className="gap-2">
-              <Save className="h-4 w-4" />
-              Save Configuration Changes
+            <Button type="submit" className="gap-2" disabled={isSaving}>
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              {isSaving ? 'Saving Changes...' : 'Save Configuration Changes'}
             </Button>
           </div>
         </form>

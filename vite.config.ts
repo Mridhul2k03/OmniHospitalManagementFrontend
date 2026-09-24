@@ -8,8 +8,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
 
   const port = parseInt(env.VITE_PORT || '5173', 10)
-  const backendTarget = env.VITE_BACKEND_URL || 'http://127.0.0.1:8000'
-  const wsTarget = env.VITE_WS_TARGET || 'ws://127.0.0.1:8000'
+  const backendTarget = env.VITE_BACKEND_URL || 'https://3lrrk4tb-8000.inc1.devtunnels.ms'
+  const wsTarget = env.VITE_WS_TARGET || 'wss://3lrrk4tb-8000.inc1.devtunnels.ms'
 
   return {
     plugins: [react(), tailwindcss()],
@@ -25,11 +25,15 @@ export default defineConfig(({ mode }) => {
           target: backendTarget,
           changeOrigin: true,
           secure: false,
+          headers: {
+            'X-Tunnel-Skip-Anti-Abuse-Page': 'true',
+          },
         },
         '/ws': {
           target: wsTarget,
           ws: true,
           changeOrigin: true,
+          secure: false,
         },
       },
     },

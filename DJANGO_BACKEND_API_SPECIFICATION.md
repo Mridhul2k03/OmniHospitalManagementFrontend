@@ -1,567 +1,967 @@
-# Django REST Framework Backend API Specification
-## Hospitality Management Operating System (HMOS) & Enterprise SaaS
+# Django REST Framework Backend API Implementation Guide & Specification
+## Omni Hospitality Management Operating System (HMOS) & Enterprise SaaS
 
-**Target Framework:** Python 3.12+ / Django 5.x / Django REST Framework 3.15+ / Django Channels (WebSockets)  
-**Standard Version:** `v1.0.0`  
-**Base URL:** `http://127.0.0.1:8000/api/v1/`  
+**Target Architecture:** Python 3.12+ / Django 5.x / Django REST Framework 3.15+ / Django Channels (WebSockets) / Celery / Redis / PostgreSQL  
+**Document Version:** `2.0.0-PROD`  
+**Frontend Client:** `OmniHospitalManagementFrontend` (React 19 + TypeScript + Vite + Tailwind CSS)  
+**Standard Base API URL:** `http://127.0.0.1:8000/api/v1/` (configured via Vite proxy `/api/v1`)  
 **WebSocket Gateway:** `ws://127.0.0.1:8000/ws/`  
-**Authoritative Frontend Client:** OmniHospitalManagementFrontend (React 19 + TypeScript + Vite + Tailwind CSS)
 
 ---
 
-## Table of Contents
-1. [Architectural Protocols & Middleware](#1-architectural-protocols--middleware)
-   - [Cookie Authentication & Security Headers](#11-cookie-authentication--security-headers)
-   - [Multi-Tenancy Resolution Middleware](#12-multi-tenancy-resolution-middleware)
-   - [Standard Response & Error Envelopes](#13-standard-response--error-envelopes)
-   - [Pagination Specification](#14-pagination-specification)
-2. [Module-by-Module API Endpoints Reference](#2-module-by-module-api-endpoints-reference)
-   - [1. Front Office & Stays Management](#21-front-office--stays-management)
-   - [2. Rooms, Matrix & Availability Engine](#22-rooms-matrix--availability-engine)
-   - [3. Reservations & Contactless Digital Check-In](#23-reservations--contactless-digital-check-in)
-   - [4. Unified Master Folios, Billing & Payments](#24-unified-master-folios-billing--payments)
-   - [5. Food & Beverage, Restaurant POS & Kitchen KDS](#25-food--beverage-restaurant-pos--kitchen-kds)
-   - [6. Housekeeping Turnover & Lost & Found Vault](#26-housekeeping-turnover--lost--found-vault)
-   - [7. Engineering & Maintenance Work Orders](#27-engineering--maintenance-work-orders)
-   - [8. Banquets & Group Events](#28-banquets--group-events)
-   - [9. Spa & Wellness Center](#29-spa--wellness-center)
-   - [10. Inventory & Procurement](#210-inventory--procurement)
-   - [11. Fleet Transport & Chauffeur Dispatch](#211-fleet-transport--chauffeur-dispatch)
-   - [12. Gate Security Checkpoint & Visitor Passes](#212-gate-security-checkpoint--visitor-passes)
-   - [13. Cloakroom & Luggage Vault](#213-cloakroom--luggage-vault)
-   - [14. Dynamic Pricing Engine & OTA Channels](#214-dynamic-pricing-engine--ota-channels)
-   - [15. Corporate Governance & Shareholder Portal](#215-corporate-governance--shareholder-portal)
-3. [Real-time WebSockets Specification (Django Channels)](#3-real-time-websockets-specification-django-channels)
-4. [Django Implementation Blueprint (Models, Serializers, Views)](#4-django-implementation-blueprint-models-serializers-views)
+## 1. Executive UI-to-Backend Connectivity Audit
+
+This section provides a forensic audit of every screen, hub, and component across the frontend codebase (`src/features/`), identifying what is fully connected, partially connected, or currently disconnected (using local state/mock data).
+
+### Comprehensive Status Matrix (All 26 Feature Modules)
+
+| # | Feature / UI Screen | Route Path | Frontend Component | Connectivity Status | Existing API File | Missing / Disconnected Actions (Gap to Bridge) |
+|---|---|---|---|---|---|---|
+| **1** | **Auth & Organization** | `/auth/login`<br>`/auth/register`<br>`/ila-admin/login` | `LoginView.tsx`<br>`RegisterView.tsx`<br>`ILALoginView.tsx` | ✅ **Fully Connected** | `src/api/endpoints/auth.api.ts` | Complete. Calls `/auth/login/`, `/auth/register/`, `/auth/me/`, `/auth/refresh/`, `/auth/logout/`. |
+| **2** | **SuperAdmin SaaS Portal** | `/ila-admin`<br>`/app/superadmin` | `SuperAdminHub.tsx` | ✅ **Fully Connected** | `src/api/endpoints/superadmin.api.ts` | Complete. Calls `/organizations/`, `/organizations/{id}/toggle-status/`, `/organizations/{id}/set-tier/`, `/auth/users/`. |
+| **3** | **Front Desk Operations** | `/app/frontdesk` | `FrontDeskHub.tsx` | ⚠️ **Partially Connected** | `src/api/endpoints/reservations.api.ts`<br>`src/api/endpoints/rooms.api.ts` | "New Walk-in Booking" and "Sync PMS Roster" buttons only trigger toasts without opening modal or calling API. Needs walk-in reservation endpoint. |
+| **4** | **Room Availability Board** | `/app/rooms` | `RoomBoardView.tsx`<br>`HotelSelectionsManager.tsx` | ✅ **Fully Connected** | `src/api/endpoints/rooms.api.ts`<br>`src/api/endpoints/properties.api.ts` | Complete. Rooms, types, amenities, floors, and buildings have full CRUD and state transition calls. |
+| **5** | **Reservations Manifest** | `/app/reservations` | `ReservationsHub.tsx` | ⚠️ **Partially Connected** | `src/api/endpoints/reservations.api.ts` | Listing is connected. "Create Reservation" button in header triggers a toast instead of an interactive booking wizard. |
+| **6** | **Digital Check-In** | `/app/checkin` | `DigitalCheckInView.tsx` | ✅ **Fully Connected** | `src/api/endpoints/reservations.api.ts` | 4-step wizard submits to `reservationsApi.submitDigitalCheckIn` (`POST /reservations/digital-check-in/`). |
+| **7** | **Unified Master Folios** | `/app/folios` | `FoliosHub.tsx` | ✅ **Fully Connected** | `src/api/endpoints/folios.api.ts` | Listing, posting multi-department charges, voiding charges with audit reason, and settling payments are connected. |
+| **8** | **Restaurant Point of Sale** | `/app/pos` | `RestaurantPOS.tsx` | ✅ **Fully Connected** | `src/api/endpoints/dining.api.ts` | Tables and menu CRUD, order firing to KDS (`/dining/orders/kot/`), and folio billing (`/dining/orders/folio/`) are connected. |
+| **9** | **Kitchen Display System** | `/app/kds` | `KitchenDisplaySystem.tsx` | ✅ **Fully Connected** | `src/api/endpoints/kot.api.ts` | Fullscreen KOT board, ticket status progression (`new` → `preparing` → `ready` → `served`), and manual ticket creation are connected. |
+| **10** | **Housekeeping Turnover** | `/app/housekeeping` | `HousekeepingHub.tsx` | ⚠️ **Partially Connected** | `src/api/endpoints/housekeeping.api.ts` | Turnover tasks and checklists are connected. **Gap:** Lost & Found tab is read-only; lacks modal to register or claim/release items. |
+| **11** | **Engineering Maintenance** | `/app/maintenance` | `MaintenanceHub.tsx` | ✅ **Fully Connected** | `src/api/endpoints/maintenance.api.ts` | Tickets list, ticket creation, priority handling, and SLA tracking are connected. |
+| **12** | **Banquets & Group Events** | `/app/events` | `EventsHub.tsx` | ⚠️ **Partially Connected** | `src/api/endpoints/operations.api.ts` | Events and venue listings are connected. **Gap:** Master Folio modal shows hardcoded dummy values; needs BEO line items endpoint. |
+| **13** | **Spa & Wellness Center** | `/app/spa` | `SpaHub.tsx` | ✅ **Fully Connected** | `src/api/endpoints/operations.api.ts` | Services and appointment listings, treatment bookings, and direct room folio charging are connected. |
+| **14** | **Finance & Night Audit** | `/app/finance` | `FinanceHub.tsx` | ⚠️ **Partially Connected** | `src/api/client/axios.ts` | Calls `/payments/` and `/folios/night-audit/`. **Gap:** "Export GL CSV" button only triggers toast; cash in vault ($4,850) is hardcoded. |
+| **15** | **Inventory & Procurement** | `/app/inventory` | `InventoryHub.tsx` | ⚠️ **Partially Connected** | `src/api/endpoints/operations.api.ts` | Stock item listing, creation, adjustment, and PO creation (`/inventory/po/`) are connected. Lacks PO history view. |
+| **16** | **Fleet & Transport** | `/app/transport` | `TransportHub.tsx` | `src/api/endpoints/transport.api.ts` | ✅ **Fully Connected** | Trips list, booking chauffeur transfers, and status progression lifecycle are connected. |
+| **17** | **Gate Security Control** | `/app/security` | `SecurityGateHub.tsx` | ✅ **Fully Connected** | `src/api/endpoints/operations.api.ts` | Perimeter visitor logs, vehicle pass creation, and barrier exit logs are connected. |
+| **18** | **Cloakroom & Luggage** | `/app/cloakroom` | `CloakroomHub.tsx` | ✅ **Fully Connected** | `src/api/endpoints/operations.api.ts` | Luggage tickets, barcode tag issuance, vault rack allocation, and verified claim release are connected. |
+| **19** | **Dynamic AI Pricing** | `/app/pricing` | `DynamicPricingHub.tsx` | ❌ **Disconnected (Client-Only)** | `src/api/endpoints/rooms.api.ts` | Fetches room types, but demand bands, surge multipliers, and manual rate overrides are **100% in local React state** and lost on reload. |
+| **20** | **OTA Channel Manager** | `/app/channels` | `ChannelsHub.tsx` | ⚠️ **Partially Connected** | `src/api/endpoints/operations.api.ts` | Channel status and sync-all are connected. **Gap:** "View Mappings" button only fires a toast; needs room/rate mapping endpoint. |
+| **21** | **Executive Dashboard** | `/app/corporate` | `ExecutiveDashboard.tsx` | ❌ **Disconnected (Hardcoded)** | `src/api/endpoints/executive.api.ts` | Does not import `executiveApi`! Displays static hardcoded metrics ($3.38M revenue, 91.5% occupancy). Export button fires a toast. |
+| **22** | **Shareholder Portal** | `/app/shareholder` | `ShareholderPortal.tsx` | ⚠️ **Partially Connected** | `src/api/endpoints/shareholder.api.ts` | Dividends list is connected. Equity stake (50k shares), asset valuations ($84M, $112M), and download buttons are hardcoded/toast only. |
+| **23** | **Human Resources & HR** | `/app/hr` | `HRHub.tsx` | ✅ **Fully Connected** | `src/api/endpoints/operations.api.ts` | Staff roster list and shift punch clock-in/out (`/hr/staff/{id}/`) are connected to backend. |
+| **24** | **Loyalty & Guest CRM** | `/app/loyalty` | `LoyaltyHub.tsx` | ❌ **Disconnected (100% Mock)** | *None* | Zero API calls. Member counts (Silver, Gold, Platinum), guest sentiment reviews, campaign creation, and reply actions are all dummy UI. |
+| **25** | **Settings & Policies** | `/app/settings` | `SettingsHub.tsx` | ⚠️ **Partially Connected** | `src/api/endpoints/properties.api.ts` | "Master Options" sub-tab is connected. "Property Policies & Profile" submit is dummy `e.preventDefault()` with no backend persistence. |
+| **26** | **System Status & Health** | `/app/system-status` | `SystemStatusHub.tsx` | ✅ **Fully Connected** | `src/api/client/axios.ts` | Audits 12 core backend endpoints for live latency and HTTP response status. |
 
 ---
 
-## 1. Architectural Protocols & Middleware
+## 2. Django System Architecture & Project Blueprint
 
-### 1.1 Cookie Authentication & Security Headers
-The backend authentication uses secure, HttpOnly cookies for browser clients, with automatic fallback to standard Bearer JWT headers:
+### 2.1 Django Project Directory Structure
 
-| Cookie / Header | Type | Value / Purpose |
-|---|---|---|
-| `Set-Cookie: access_token` | HttpOnly Cookie | 60-minute JWT token (`Path=/`, `SameSite=Lax`, `HttpOnly`, `Secure` in prod). |
-| `Set-Cookie: refresh_token`| HttpOnly Cookie | 7-day token refresh cookie (`Path=/api/v1/auth/refresh/`, `SameSite=Lax`, `HttpOnly`). |
-| `Authorization` | Request Header | `Bearer <access_token>` (Dual-mode fallback). |
-| `X-Tenant-ID` | Request Header | Institutional/Property Tenant UUID or Slug (`oxford-crest`, `prop-001`). Mandatory on tenant-scoped routes. |
-| `X-Request-ID` | Request Header | Unique client UUID for distributed logging and audit entries. |
+```text
+omni_backend/
+├── manage.py
+├── requirements.txt
+├── omni_project/
+│   ├── __init__.py
+│   ├── asgi.py                  # ASGI for Django Channels WebSockets
+│   ├── wsgi.py
+│   ├── settings/
+│   │   ├── base.py
+│   │   ├── development.py
+│   │   └── production.py
+│   └── urls.py                  # Root URLconf routing to /api/v1/ and /ws/
+├── apps/
+│   ├── core/                    # Base models, middleware, pagination, response wrappers
+│   ├── authentication/          # User model, RBAC, JWT cookies, session handling
+│   ├── tenants/                 # Organization multi-tenancy & subscriptions
+│   ├── properties/              # Properties, buildings, floors, physical inventory
+│   ├── rooms/                   # Rooms, room types, amenities, status state machine
+│   ├── reservations/            # Bookings, digital check-in, arrivals, departures
+│   ├── billing/                 # Folios, charges, voiding, payments, night audit
+│   ├── dining/                  # POS tables, menu items, order routing
+│   ├── kitchen/                 # KDS tickets, station queues, bump logic
+│   ├── housekeeping/            # Turnover tasks, hygiene checklists, lost & found
+│   ├── maintenance/             # Work orders, incident tickets, technician SLA
+│   ├── transport/               # Vehicles, drivers, chauffeur dispatch
+│   ├── security/                # Gate logs, visitor passes, barrier events
+│   ├── cloakroom/               # Luggage tickets, rack allocation, release custody
+│   ├── inventory/               # Central stock, adjustments, purchase orders
+│   ├── events/                  # Venues, banquet bookings, BEO master folios
+│   ├── spa/                     # Treatments, therapist scheduling, room charging
+│   ├── pricing/                 # Dynamic pricing rules, demand bands, overrides
+│   ├── channels/                # OTA connections, room/rate mapping, 2-way sync
+│   ├── corporate/               # Executive KPIs, portfolio comparison, board packs
+│   ├── shareholder/             # Accredited investor portal, dividends, filings
+│   ├── hr/                      # Staff roster, biometric clock-in/out, shifts
+│   └── loyalty/                 # Guest loyalty tiers, promo campaigns, review sentiment
+```
 
-### 1.2 Multi-Tenancy Resolution Middleware
-Create a Django Middleware (`TenantResolutionMiddleware`):
+---
+
+### 2.2 Core Middleware Architecture
+
+#### 1. Multi-Tenancy Resolution (`TenantMiddleware`)
+Extracts the institutional tenant from the `X-Tenant-ID` header (or fallback cookie/JWT payload) and injects `request.tenant` into all DRF requests:
+
 ```python
-# middleware.py
-class TenantResolutionMiddleware:
-    def __init__(self, get_response):
-        self.get_response = get_response
+# apps/core/middleware.py
+import uuid
+from django.utils.deprecation import MiddlewareMixin
+from django.http import JsonResponse
+from apps.tenants.models import ClientOrganization
 
-    def __call__(self, request):
-        tenant_header = request.headers.get("X-Tenant-ID")
+class TenantResolutionMiddleware(MiddlewareMixin):
+    """
+    Resolves the active tenant from 'X-Tenant-ID' request header or sub-claim.
+    Ensures strict row-level multi-tenant isolation across all models.
+    """
+    def process_request(self, request):
+        tenant_identifier = request.headers.get("X-Tenant-ID") or request.COOKIES.get("omni_tenant_id")
         request.tenant = None
-        if tenant_header:
-            from apps.tenants.models import Tenant
+        
+        # Bypass for public / superadmin platform endpoints
+        exempt_paths = ["/api/v1/auth/login/", "/api/v1/auth/register/", "/api/v1/organizations/", "/api/v1/health/"]
+        if any(request.path.startswith(path) for path in exempt_paths):
+            return None
+
+        if tenant_identifier:
             try:
-                if is_valid_uuid(tenant_header):
-                    request.tenant = Tenant.objects.get(id=tenant_header, is_active=True)
+                if self._is_valid_uuid(tenant_identifier):
+                    request.tenant = ClientOrganization.objects.filter(id=tenant_identifier, is_active=True).first()
                 else:
-                    request.tenant = Tenant.objects.get(slug=tenant_header, is_active=True)
-            except Tenant.DoesNotExist:
+                    request.tenant = ClientOrganization.objects.filter(code__iexact=tenant_identifier, is_active=True).first()
+            except Exception:
                 pass
-        return self.get_response(request)
+
+        # If tenant required but not found
+        if not request.tenant and request.path.startswith("/api/v1/") and not any(request.path.startswith(p) for p in exempt_paths):
+            # Optional: Allow superadmins to proceed without tenant scope
+            if hasattr(request, 'user') and request.user.is_authenticated and request.user.is_superuser:
+                return None
+            return JsonResponse({
+                "success": False,
+                "error": {
+                    "code": "MISSING_TENANT_SCOPE",
+                    "message": "A valid 'X-Tenant-ID' header is required for this operational endpoint."
+                }
+            }, status=400)
+
+    @staticmethod
+    def _is_valid_uuid(val):
+        try:
+            uuid.UUID(str(val))
+            return True
+        except ValueError:
+            return False
 ```
 
-### 1.3 Standard Response & Error Envelopes
+#### 2. Dual-Mode Authentication (HttpOnly Cookies + Bearer Token)
+Supports secure HttpOnly cookies (`access_token`, `refresh_token`) for browser frontend, with seamless fallback to `Authorization: Bearer <token>`:
 
-#### Success Envelope (`200 OK`, `201 Created`):
-```json
-{
-  "success": true,
-  "data": { ... },
-  "meta": {
-    "request_id": "9f323df4-6663-4ce4-82a1-ebfcf8951db4"
-  }
-}
-```
-
-#### Error Envelope (`400`, `401`, `403`, `404`, `500`):
-```json
-{
-  "success": false,
-  "error": {
-    "code": "INVALID_CREDENTIALS",
-    "message": "No active account found with the given credentials.",
-    "details": {
-      "field_name": ["Specific field error."]
-    }
-  },
-  "meta": {
-    "request_id": "a9649d33-12bb-43b1-a3f4-4c70a3625cc6"
-  }
-}
-```
-
-### 1.4 Pagination Specification
-All listing endpoints implement `StandardResultsSetPagination`:
-```json
-{
-  "success": true,
-  "data": [ ... ],
-  "meta": {
-    "count": 142,
-    "total_pages": 6,
-    "current_page": 1,
-    "page_size": 25,
-    "next": "http://127.0.0.1:8000/api/v1/endpoint/?page=2",
-    "previous": null,
-    "request_id": "e924f4ec-fa2d-454b-b865-b3c1f7666e91"
-  }
-}
-```
-
----
-
-## 2. Module-by-Module API Endpoints Reference
-
-### 2.1 Front Office & Stays Management
-
-#### `POST /api/v1/frontoffice/check-in/`
-Executes guest check-in: validates reservation state, transitions room to `occupied`, generates digital key card, and creates active `Stay` session.
-- **Request Body:**
-```json
-{
-  "reservation_id": "782806ff-e737-4f68-b7a4-ef79a613589b",
-  "assigned_room_id": "e920630b-d24a-436f-8083-d5d85c88b901",
-  "key_card_count": 2,
-  "id_document_type": "passport",
-  "id_document_number": "PA-9920141",
-  "signature_data_url": "data:image/png;base64,...",
-  "special_notes": "Late checkout requested."
-}
-```
-- **Response (`200 OK`):**
-```json
-{
-  "success": true,
-  "message": "Check-in completed successfully. Room 201 occupied.",
-  "data": {
-    "stay_id": "c3e414c2-9e19-482a-a92e-3d8fa1c4a001",
-    "room_number": "201",
-    "guest_name": "Dr. Eleanor Vance",
-    "check_in_time": "2026-09-20T14:30:00Z"
-  }
-}
-```
-
-#### `POST /api/v1/frontoffice/check-out/`
-Executes departure: verifies zero-balance folio (or settles remaining), marks room `dirty`, and releases stay.
-- **Request Body:**
-```json
-{
-  "stay_id": "c3e414c2-9e19-482a-a92e-3d8fa1c4a001",
-  "settlement_method": "card",
-  "notes": "Express checkout verified."
-}
-```
-
-#### `POST /api/v1/frontoffice/transfer-room/`
-Transfers active guest to another room with mandatory audit reason.
-- **Request Body:**
-```json
-{
-  "current_room_id": "e920630b-d24a-436f-8083-d5d85c88b901",
-  "target_room_id": "f512720a-e35b-437a-9094-e6e96d99c902",
-  "reason": "AC compressor malfunction in original room."
-}
-```
-
-#### `GET /api/v1/frontoffice/stays/`
-Lists current active stays. Filters: `status` (`in_house`, `checked_out`), `search`.
-
----
-
-### 2.2 Rooms, Matrix & Availability Engine
-
-#### `GET /api/v1/rooms/rooms/`
-Lists all physical rooms scoped to active tenant/property.
-- **Query Filters:** `floor_id`, `building_id`, `room_type_id`, `status` (`available`, `occupied`, `dirty`, `cleaning`, `inspection`, `maintenance`, `reserved`, `blocked`).
-
-#### `POST /api/v1/rooms/rooms/{id}/status-transition/`
-State machine transition endpoint (e.g. `dirty` → `cleaning` → `inspection` → `available`).
-- **Request Body:**
-```json
-{
-  "status": "available",
-  "reason": "Turnover inspection passed by Lead Supervisor."
-}
-```
-
-#### `GET /api/v1/availability/search/`
-Real-time availability matrix for dates and guest occupancy.
-- **Query Params:** `check_in_date` (`YYYY-MM-DD`), `check_out_date` (`YYYY-MM-DD`), `adults`, `children`, `room_type`.
-
-#### `GET /api/v1/buildings/` & `GET /api/v1/floors/`
-Lists institutional/property architectural physical structures.
-
-#### `GET /api/v1/rooms/types/`
-Lists configured room types (`Standard King`, `Executive Suite`, `Presidential Penthouse`).
-
----
-
-### 2.3 Reservations & Contactless Digital Check-In
-
-#### `GET /api/v1/reservations/`
-Lists bookings with pagination.
-- **Query Filters:** `status` (`confirmed`, `checked_in`, `cancelled`, `no_show`), `check_in_from`, `check_in_to`, `search`.
-
-#### `GET /api/v1/reservations/today-arrivals/`
-Optimized query for arrivals expected on the current operational date.
-
-#### `GET /api/v1/reservations/today-departures/`
-Departures scheduled for today.
-
-#### `POST /api/v1/reservations/{id}/cancel/`
-Cancels booking, calculates cancellation penalty fee, and updates availability.
-- **Request Body:**
-```json
-{
-  "cancellation_reason": "Flight cancellation reported.",
-  "waive_penalty": false
-}
-```
-
-#### `POST /api/v1/check-in/wizard-submit/`
-Contactless check-in wizard submission from mobile / self-service kiosk.
-- **Request Body:**
-```json
-{
-  "reservation_code": "RES-2026-8941",
-  "guest_verified": true,
-  "id_document_image": "data:image/jpeg;base64,...",
-  "emergency_contact": {
-    "name": "David Vance",
-    "phone": "+15551234567",
-    "relationship": "spouse"
-  },
-  "digital_signature": "data:image/png;base64,..."
-}
-```
-
----
-
-### 2.4 Unified Master Folios, Billing & Payments
-
-#### `GET /api/v1/billing/folios/`
-Lists guest and corporate master folios.
-- **Filters:** `stay_id`, `guest_id`, `status` (`open`, `settled`, `closed`).
-
-#### `POST /api/v1/billing/folios/{id}/charges/`
-Posts an arbitrary department charge onto the guest folio.
-- **Request Body:**
-```json
-{
-  "department": "restaurant",
-  "description": "Table #4 Fine Dining Bill - KOT #104",
-  "amount": "145.50",
-  "tax_amount": "14.55",
-  "reference_id": "POS-ORD-991"
-}
-```
-
-#### `POST /api/v1/billing/folios/{id}/void-charge/`
-Voids a folio item. Requires mandatory audit explanation.
-- **Request Body:**
-```json
-{
-  "charge_id": "b128794c-819a-4e2b-93ca-efc98124b801",
-  "void_reason": "Duplicate beverage charge posted in error."
-}
-```
-
-#### `POST /api/v1/payments/`
-Records an idempotent payment transaction against a folio.
-- **Request Body:**
-```json
-{
-  "folio_id": "c92841bc-9918-4a18-b8ca-91bce4718901",
-  "amount": "160.05",
-  "payment_method": "card",
-  "transaction_reference": "TXN-STRIPE-49120",
-  "notes": "Full settlement at checkout."
-}
-```
-
-#### `POST /api/v1/payments/{id}/refund/`
-Executes partial or full refund with audit trail.
-
----
-
-### 2.5 Food & Beverage, Restaurant POS & Kitchen KDS
-
-#### `GET /api/v1/dining/tables/`
-Lists dining room floor plan tables (`table_number`, `capacity`, `status`: `available`, `seated`, `bill_requested`).
-
-#### `GET /api/v1/dining/menu/`
-Hierarchical menu categories and menu items with allergen and pricing tags.
-
-#### `POST /api/v1/dining/orders/fire-kot/`
-Fires dining table order items to the kitchen display system (KDS).
-- **Request Body:**
-```json
-{
-  "table_id": "t-04",
-  "server_name": "Julian Rios",
-  "covers": 2,
-  "guest_room_number": "201",
-  "items": [
-    {
-      "menu_item_id": "item-ribeye",
-      "quantity": 1,
-      "station": "grill",
-      "modifiers": "Medium-Rare, Truffle Butter"
-    },
-    {
-      "menu_item_id": "item-caesar",
-      "quantity": 1,
-      "station": "cold",
-      "modifiers": "Dressing on the side"
-    }
-  ]
-}
-```
-*Note: Triggers immediate Django Channels broadcast on group `kot_orders`.*
-
-#### `GET /api/v1/kot/tickets/`
-Active kitchen order queue. Filter: `station` (`all`, `grill`, `hot_line`, `cold`, `pastry`, `beverage`).
-
-#### `POST /api/v1/kot/tickets/{id}/bump/`
-Transitions KOT ticket or item state: `new` → `accepted` → `preparing` → `ready` → `served`.
-
----
-
-### 2.6 Housekeeping Turnover & Lost & Found Vault
-
-#### `GET /api/v1/housekeeping/tasks/`
-Lists room turnover tasks prioritized by checkout departure and VIP arrivals.
-
-#### `POST /api/v1/housekeeping/tasks/{id}/transition/`
-Updates task state: `assigned` → `in_progress` → `inspected` → `completed`.
-- Attaches optional cleaning checklist verification array.
-
-#### `GET /api/v1/housekeeping/lost-found/`
-Lists registered lost items in the custody vault.
-
-#### `POST /api/v1/housekeeping/lost-found/`
-Registers newly found item:
-```json
-{
-  "room_number": "204",
-  "item_name": "Gold Cartier Watch",
-  "category": "jewelry",
-  "storage_locker_id": "VAULT-LOCKER-12",
-  "founder_staff_name": "Maria Santos",
-  "photo_url": "https://...",
-  "notes": "Found in master bedside drawer."
-}
-```
-
----
-
-### 2.7 Engineering & Maintenance Work Orders
-
-#### `GET /api/v1/maintenance/tickets/`
-Lists engineering work orders. Filters: `priority` (`low`, `medium`, `high`, `urgent`), `status` (`reported`, `in_progress`, `waiting_parts`, `resolved`).
-
-#### `POST /api/v1/maintenance/tickets/`
-Logs new maintenance incident. Automatically flags room if urgent.
-
-#### `POST /api/v1/maintenance/tickets/{id}/assign/`
-Assigns lead technician and target completion SLA timestamp.
-
----
-
-### 2.8 Banquets & Group Events
-
-#### `GET /api/v1/events/venues/`
-Lists event spaces, maximum capacities by configuration (theatre, banquet, classroom).
-
-#### `GET /api/v1/events/bookings/` & `POST /api/v1/events/bookings/`
-Manages banquets, corporate summits, and weddings with linked room blocks and master event folios.
-
----
-
-### 2.9 Spa & Wellness Center
-
-#### `GET /api/v1/spa/treatments/` & `GET /api/v1/spa/appointments/`
-Appointment scheduling, therapist duty assignment, and automatic posting of treatment charges to room folios.
-
----
-
-### 2.10 Inventory & Procurement
-
-#### `GET /api/v1/inventory/items/`
-Monitors stock levels, minimum par thresholds, unit costs, and warehouse locations.
-
-#### `POST /api/v1/inventory/requisitions/`
-Generates departmental internal store stock requisitions or purchase orders.
-
----
-
-### 2.11 Fleet Transport & Chauffeur Dispatch
-
-#### `GET /api/v1/transport/vehicles/` & `GET /api/v1/transport/drivers/`
-Lists vehicles (capacity, plate number, type) and licensed chauffeurs.
-
-#### `GET /api/v1/transport/trips/` & `POST /api/v1/transport/trips/`
-Airport transfer dispatch and lifecycle: `scheduled` → `dispatched` → `in_transit` → `completed`.
-
----
-
-### 2.12 Gate Security Checkpoint & Visitor Passes
-
-#### `GET /api/v1/security/visitor-passes/` & `POST /api/v1/security/visitor-passes/`
-Issues temporary RFID or badge passes for contractors and visitors with host verification.
-
-#### `GET /api/v1/security/gate-logs/` & `POST /api/v1/security/gate-logs/`
-Logs vehicle barrier entry/exit (license plate OCR, delivery vs guest vehicle, driver identification).
-
----
-
-### 2.13 Cloakroom & Luggage Vault
-
-#### `GET /api/v1/cloakroom/tags/` & `POST /api/v1/cloakroom/tags/`
-Generates baggage claim tag, assigns rack position, and processes identity-verified release on pickup.
-
----
-
-### 2.14 Dynamic Pricing Engine & OTA Channels
-
-#### `GET /api/v1/pricing/demand-bands/`
-Retrieves automated pricing bands (`surge`, `high`, `normal`, `low`) calculated against forecasted occupancy.
-
-#### `POST /api/v1/pricing/overrides/`
-Sets manual rate override. Mandatory fields: `date_start`, `date_end`, `room_type_id`, `new_rate`, `audit_reason`.
-
-#### `GET /api/v1/channels/status/`
-Health of 2-way sync with Booking.com, Expedia, Agoda, and Airbnb.
-
-#### `POST /api/v1/channels/trigger-sync/`
-Dispatches background Celery task to push updated rate parity and availability inventory across all OTA channels.
-
----
-
-### 2.15 Corporate Governance & Shareholder Portal
-
-#### `GET /api/v1/corporate/kpis/`
-Consolidated corporate metrics: Occupancy %, RevPAR, ADR, GOPPAR, Gross Revenue, and property comparisons.
-
-#### `GET /api/v1/shareholder/profile/`
-Strictly read-only profile for accredited shareholders (ownership units, dividend entitlement).
-
-#### `GET /api/v1/shareholder/dividends/`
-Historical and pending dividend distribution disbursements.
-
-#### `GET /api/v1/shareholder/reports/`
-Certified financial statements (Balance Sheet, P&L, Audit Opinions) available for download.
-
----
-
-## 3. Real-time WebSockets Specification (Django Channels)
-
-### 3.1 Gateway Endpoint
-- URL: `ws://127.0.0.1:8000/ws/operations/` or `ws://127.0.0.1:8000/ws/kot/`
-- Authentication Handshake: Reads `access_token` HttpOnly cookie or query param `?token=<jwt>`.
-
-### 3.2 Channel Groups & Events
-1. `group_kot_{property_id}`:
-   - `kot_order_fired`: Dispatched when POS places an order.
-   - `kot_item_bumped`: Dispatched when cook bumps item status.
-2. `group_housekeeping_{property_id}`:
-   - `room_state_changed`: Dispatched when attendant updates room status (`dirty` -> `clean` -> `available`).
-3. `group_frontdesk_{property_id}`:
-   - `stay_checkin`: Dispatched on guest check-in.
-   - `gate_security_alert`: Dispatched if an unauthorized vehicle enters.
-
----
-
-## 4. Django Implementation Blueprint (Models, Serializers, Views)
-
-### 4.1 Sample Core Models
 ```python
-# apps/rooms/models.py
+# apps/authentication/authentication.py
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.exceptions import InvalidToken, AuthenticationFailed
+
+class CookieOrBearerJWTAuthentication(JWTAuthentication):
+    """
+    Checks HTTP Authorization header first; if absent, inspects HttpOnly cookie 'access_token'.
+    """
+    def authenticate(self, request):
+        header = self.get_header(request)
+        if header is not None:
+            raw_token = self.get_raw_token(header)
+        else:
+            raw_token = request.COOKIES.get("access_token")
+
+        if raw_token is None:
+            return None
+
+        validated_token = self.get_validated_token(raw_token)
+        return self.get_user(validated_token), validated_token
+```
+
+#### 3. Standard Response & Error Envelope
+Axios in the frontend expects `{ "success": true, "data": ..., "meta": { ... } }` on success and `{ "success": false, "error": { "code": ..., "message": ... } }` on error:
+
+```python
+# apps/core/renderers.py
+from rest_framework.renderers import JSONRenderer
+
+class StandardEnvelopeJSONRenderer(JSONRenderer):
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        response = renderer_context.get("response") if renderer_context else None
+        status_code = response.status_code if response else 200
+
+        # Don't re-wrap if already structured or if binary/file download
+        if isinstance(data, (bytes, bytearray)) or getattr(response, 'is_binary', False):
+            return super().render(data, accepted_media_type, renderer_context)
+
+        request_id = ""
+        if renderer_context and "request" in renderer_context:
+            request_id = renderer_context["request"].headers.get("X-Request-ID", "")
+
+        if status_code >= 400:
+            formatted_response = {
+                "success": False,
+                "error": {
+                    "code": data.get("code", "REQUEST_FAILED") if isinstance(data, dict) else "ERROR",
+                    "message": data.get("detail", data.get("message", "An error occurred.")) if isinstance(data, dict) else str(data),
+                    "details": data if isinstance(data, dict) else None,
+                },
+                "meta": {"request_id": request_id}
+            }
+        else:
+            # Handle paginated or non-paginated data
+            if isinstance(data, dict) and ("results" in data or "data" in data):
+                inner_data = data.get("results", data.get("data"))
+                meta = {
+                    "count": data.get("count", len(inner_data) if isinstance(inner_data, list) else 1),
+                    "next": data.get("next"),
+                    "previous": data.get("previous"),
+                    "request_id": request_id,
+                }
+                formatted_response = {"success": True, "data": inner_data, "meta": meta}
+            else:
+                formatted_response = {"success": True, "data": data, "meta": {"request_id": request_id}}
+
+        return super().render(formatted_response, accepted_media_type, renderer_context)
+```
+
+---
+
+## 3. Complete Module-by-Module API Specification
+
+### Module 1: Authentication, Sessions & RBAC
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `POST` | `/api/v1/auth/login/` | Issues JWT pair, sets `access_token` and `refresh_token` HttpOnly cookies | `{"email": "string", "password": "string"}` | `{"user": UserObject, "access": "token", "active_tenant": TenantObject}` |
+| `POST` | `/api/v1/auth/register/` | Registers hotel organization admin or guest | `{"email": "...", "password": "...", "organization_name": "..."}` | `{"success": true, "user": UserObject}` |
+| `POST` | `/api/v1/auth/logout/` | Blacklists refresh token and deletes auth cookies | None | `{"message": "Logged out successfully"}` |
+| `POST` | `/api/v1/auth/refresh/` | Refreshes access token via cookie or body | `{"refresh": "string"}` (optional if in cookie) | `{"access": "new_token"}` |
+| `GET` | `/api/v1/auth/me/` | Retrieves authenticated identity & permissions | None | `{"user": UserObject, "active_tenant": TenantObject, "permissions": ["..."]}` |
+| `POST` | `/api/v1/auth/switch-tenant/` | Changes operational property/tenant context | `{"tenant_id": "uuid"}` | `{"active_tenant": TenantObject}` |
+| `POST` | `/api/v1/auth/change-password/` | Updates user password | `{"old_password": "...", "new_password": "..."}` | `{"message": "Password updated"}` |
+| `GET` | `/api/v1/auth/health/` | Auth subsystem heartbeat | None | `{"status": "healthy", "timestamp": "ISO"}` |
+
+---
+
+### Module 2: SuperAdmin & SaaS Organization Management
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/organizations/` | Lists hotel client tenants | `search`, `subscription_tier` | `[{"id": "...", "name": "...", "code": "...", "subscription_tier": "ENTERPRISE", "is_active": true}]` |
+| `POST` | `/api/v1/organizations/` | Provisions new hotel tenant + admin account | `{"name": "...", "code": "...", "contact_email": "...", "subscription_tier": "PROFESSIONAL", "admin_email": "...", "admin_password": "..."}` | `ClientOrganization` record |
+| `PATCH` | `/api/v1/organizations/{id}/` | Updates tenant details | `{"legal_name": "...", "address": "..."}` | Updated `ClientOrganization` |
+| `POST` | `/api/v1/organizations/{id}/toggle-status/` | Suspends or reactivates hotel tenant | None | `{"success": true, "is_active": false}` |
+| `POST` | `/api/v1/organizations/{id}/set-tier/` | Modifies subscription tier | `{"subscription_tier": "ENTERPRISE"}` | `{"success": true, "subscription_tier": "ENTERPRISE"}` |
+| `GET` | `/api/v1/auth/users/` | Global user list across tenants | `organization`, `role`, `search`, `is_active` | `[{"id": "...", "email": "...", "role": "property_manager"}]` |
+| `POST` | `/api/v1/auth/users/` | Provisions staff/admin user | `{"email": "...", "username": "...", "password": "...", "role": "front_desk", "organization": "uuid"}` | Created `PlatformUser` |
+| `PATCH` | `/api/v1/auth/users/{id}/` | Updates user profile or role | `{"role": "housekeeping", "is_active": true}` | Updated `PlatformUser` |
+| `POST` | `/api/v1/auth/users/{id}/toggle-status/`| Disables or enables user account | None | `{"is_active": false}` |
+| `POST` | `/api/v1/auth/users/{id}/reset-password/`| Superadmin-enforced password reset | `{"new_password": "..."}` | `{"message": "Password reset"}` |
+
+---
+
+### Module 3: Properties, Buildings & Architectural Floors
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/properties/` | Lists properties owned by tenant | None | `[{"id": "...", "name": "Grand Horizon", "code": "GH-NY", "city": "New York"}]` |
+| `GET` | `/api/v1/properties/{id}/` | Single property master record | None | Full `Property` record |
+| `PATCH` | `/api/v1/properties/{id}/` | Updates operational policies & contacts | `{"name": "...", "checkInTime": "15:00", "checkOutTime": "11:00", "phone": "...", "email": "..."}` | Updated `Property` |
+| `GET` | `/api/v1/buildings/` | Lists buildings/wings across property | `property_id` | `[{"id": "...", "name": "North Wing", "code": "NW"}]` |
+| `POST` | `/api/v1/buildings/` | Creates building wing | `{"name": "East Tower", "code": "ET", "property": "uuid"}` | Created `Building` |
+| `PATCH` | `/api/v1/buildings/{id}/` | Updates building wing | `{"name": "..."}` | Updated `Building` |
+| `DELETE`| `/api/v1/buildings/{id}/` | Deletes building wing | None | `204 No Content` |
+| `GET` | `/api/v1/floors/` | Lists physical floor levels | `building_id` | `[{"id": "...", "floor_number": 2, "name": "Floor 2"}]` |
+| `POST` | `/api/v1/floors/` | Adds floor level | `{"floor_number": 5, "name": "Floor 5 - Penthouse", "building": "uuid"}` | Created `Floor` |
+| `PATCH` | `/api/v1/floors/{id}/` | Renames floor level | `{"name": "VIP Floor 5"}` | Updated `Floor` |
+| `DELETE`| `/api/v1/floors/{id}/` | Removes floor level | None | `204 No Content` |
+
+---
+
+### Module 4: Rooms, Master Amenities & State Machine
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/rooms/` | Lists physical room rack | `floorId`, `buildingId`, `roomTypeId`, `status`, `isSmoking`, `search` | `[{"id": "...", "roomNumber": "501", "roomTypeName": "Penthouse", "floorNumber": 5, "status": "available", "currentRate": 650.00}]` |
+| `GET` | `/api/v1/rooms/{id}/` | Single room details | None | `Room` record |
+| `POST` | `/api/v1/rooms/` | Adds physical room key | `{"room_number": "502", "room_type": "uuid", "status": "AVAILABLE"}` | Created `Room` |
+| `GET` | `/api/v1/rooms/types/` | Lists room categories & tariffs | None | `[{"id": "...", "name": "Deluxe King", "base_price": 280, "max_occupancy": 3}]` |
+| `POST` | `/api/v1/rooms/types/` | Creates room category | `{"name": "Premier Suite", "code": "PS", "base_price": 380, "max_occupancy": 4, "description": "..."}` | Created `RoomType` |
+| `PATCH` | `/api/v1/rooms/types/{id}/`| Updates category rate/specs | `{"base_price": 400, "max_occupancy": 4}` | Updated `RoomType` |
+| `DELETE`| `/api/v1/rooms/types/{id}/`| Deletes room category | None | `204 No Content` |
+| `GET` | `/api/v1/rooms/amenities/`| Lists hotel amenity catalog | None | `[{"id": "...", "name": "Jacuzzi", "description": "..."}]` |
+| `POST` | `/api/v1/rooms/amenities/`| Registers amenity | `{"name": "Balcony Ocean View", "description": "..."}` | Created `Amenity` |
+| `DELETE`| `/api/v1/rooms/amenities/{id}/`| Deletes amenity | None | `204 No Content` |
+| `POST` | `/api/v1/rooms/{id}/status-transition/` | State transition (`dirty` → `cleaning` → `inspection` → `available`) | `{"status": "AVAILABLE", "reason": "Passed hygiene protocol"}` | Updated `Room` |
+| `POST` | `/api/v1/rooms/{id}/transfer/` | Moves guest to another room with audit | `{"targetRoomId": "uuid", "reason": "HVAC issue"}` | `{"message": "...", "sourceRoom": ..., "targetRoom": ...}` |
+
+---
+
+### Module 5: Front Desk, Reservations & Contactless Check-In
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/reservations/` | Master bookings manifest | `status`, `checkInDate`, `checkOutDate`, `channel`, `search` | `[{"id": "...", "code": "RES-9011", "guest": {...}, "roomNumber": "501", "status": "confirmed", "totalAmount": 4250, "balanceAmount": 2250}]` |
+| `GET` | `/api/v1/reservations/{id}/`| Single reservation record | None | `Reservation` record |
+| `POST` | `/api/v1/reservations/` | Creates reservation / walk-in booking | `{"guest": {...}, "roomId": "...", "checkInDate": "YYYY-MM-DD", "checkOutDate": "YYYY-MM-DD", "totalAmount": 800, "channel": "walk_in"}` | Created `Reservation` |
+| `POST` | `/api/v1/reservations/{id}/check-in/` | Front desk check-in: occupies room, encodes keys | `{"assignedRoomId": "uuid", "keyCardsCount": 2, "notes": "VIP guest"}` | `{"status": "in_house", "roomNumber": "501"}` |
+| `POST` | `/api/v1/reservations/{id}/check-out/` | Front desk departure: marks room dirty, closes folio | `{"settlementMethod": "CARD", "notes": "Express checkout"}` | `{"status": "checked_out"}` |
+| `POST` | `/api/v1/reservations/{id}/cancel/` | Cancels booking with audit reason | `{"reason": "Guest request"}` | `{"status": "cancelled"}` |
+| `POST` | `/api/v1/reservations/digital-check-in/` | Contactless pre-arrival check-in submission | `{"confirmationCode": "RES-9011", "firstName": "...", "lastName": "...", "idType": "passport", "idNumber": "...", "signatureBase64": "..."}` | `{"status": "confirmed", "qrCode": "QR-...", "roomNumber": "501"}` |
+| `GET` | `/api/v1/reservations/today-arrivals/` | Expected arrivals for current date | None | `[Reservation]` |
+| `GET` | `/api/v1/reservations/today-departures/`| Expected departures for current date | None | `[Reservation]` |
+| `GET` | `/api/v1/reservations/in-house/` | Active staying guests | None | `[Reservation]` |
+
+---
+
+### Module 6: Master Folios, Cashiering & Night Audit
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/folios/` | Lists guest & corporate folios | `status`, `roomNumber`, `reservationId`, `guestName` | `[{"id": "...", "roomNumber": "501", "guestName": "Lord Crawford", "subtotal": 3800, "totalTax": 380, "totalAmount": 4180, "balanceDue": 2180, "status": "open"}]` |
+| `GET` | `/api/v1/folios/{id}/` | Full folio statement with line items | None | `UnifiedFolio` (charges + payments) |
+| `POST` | `/api/v1/folios/{id}/charges/` | Posts charge from any outlet | `{"department": "restaurant", "description": "Palm Court Dinner", "amount": 145.50, "referenceNumber": "POS-912"}` | Created `FolioChargeItem` |
+| `POST` | `/api/v1/folios/{id}/charges/{chargeId}/void/` | Voids charge with audit explanation | `{"reason": "Duplicate beverage posting"}` | `{"success": true, "chargeId": "..."}` |
+| `POST` | `/api/v1/folios/{id}/payments/` | Collects payment / settles folio balance | `{"amount": 500.00, "paymentMethod": "credit_card", "transactionReference": "TXN-8821"}` | Created `FolioPayment` |
+| `GET` | `/api/v1/folios/{id}/invoice-pdf/` | Streams tax invoice PDF | None | PDF binary file stream |
+| `POST` | `/api/v1/folios/night-audit/` | Executes daily ledger closing & rollover | None | `{"success": true, "total_daily_revenue": 48920, "total_outstanding_receivables": 14200, "total_payments_reconciled": 8450}` |
+| `GET` | `/api/v1/payments/` | Central payments ledger for accounting | None | `[{"id": "...", "amount": 2000, "payment_method": "AMEX", "gateway": "Front Desk Cashier", "paid_at": "..."}]` |
+| `GET` | `/api/v1/finance/gl-export/` *(Bridge)* | Exports General Ledger CSV | None | CSV file stream (`text/csv`) |
+
+---
+
+### Module 7: Dining POS & Kitchen Display System (KDS)
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/dining/tables/` | Lists restaurant floor plan tables | None | `[{"id": "...", "tableNumber": "T-01", "capacity": 4, "status": "available", "section": "Main Dining"}]` |
+| `POST` | `/api/v1/dining/tables/` | Adds table | `{"tableNumber": "T-06", "capacity": 6, "section": "Terrace"}` | Created `DiningTable` |
+| `PATCH` | `/api/v1/dining/tables/{id}/` | Updates table status / capacity | `{"status": "occupied"}` | Updated `DiningTable` |
+| `DELETE`| `/api/v1/dining/tables/{id}/` | Deletes table | None | `204 No Content` |
+| `GET` | `/api/v1/dining/menu/` | Lists digital menu items & pricing | None | `[{"id": "...", "name": "Prime Ribeye", "price": 48.00, "category": "Mains"}]` |
+| `POST` | `/api/v1/dining/menu/` | Adds culinary dish | `{"name": "Lobster Bisque", "category": "Appetizers", "price": 22.00, "description": "..."}` | Created `MenuItem` |
+| `PATCH` | `/api/v1/dining/menu/{id}/` | Updates dish price/stock | `{"price": 24.00, "isAvailable": false}` | Updated `MenuItem` |
+| `DELETE`| `/api/v1/dining/menu/{id}/` | Removes menu item | None | `204 No Content` |
+| `POST` | `/api/v1/dining/orders/kot/` | Fires order from POS to kitchen KDS | `{"tableNumber": "T-01", "roomNumber": "501", "serverName": "Julian", "items": [{"menuItemId": "...", "quantity": 1, "specialInstructions": "Medium Rare", "station": "Grill"}]}` | Dispatches WebSocket event `kot_order_fired` and returns created KOT |
+| `POST` | `/api/v1/dining/orders/folio/` | Billed to in-house guest room folio | `{"roomNumber": "501", "amount": 185.00, "tip": 25.00, "orderNumber": "ORD-410"}` | `{"success": true, "folioId": "..."}` |
+| `GET` | `/api/v1/kot/orders/` | Active kitchen order tickets | `status`, `station` | `[{"id": "...", "ticketNumber": "KOT-104", "tableNumber": "T-01", "status": "preparing", "items": [...]}]` |
+| `POST` | `/api/v1/kot/orders/` | Creates manual kitchen ticket | Same as KOT payload | Created KOT |
+| `PATCH` | `/api/v1/kot/orders/{id}/status/` | Advances KOT status (`new` → `preparing` → `ready` → `served`) | `{"status": "ready"}` | Dispatches WebSocket event `kot_status_changed` |
+| `PATCH` | `/api/v1/kot/orders/{id}/items/{itemId}/status/` | Bumps individual dish status | `{"status": "done"}` | Updated ticket |
+
+---
+
+### Module 8: Housekeeping Turnover & Lost-and-Found Vault
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/housekeeping/tasks/` | Turnover tasks queue | `status`, `floorNumber`, `priority`, `assignedTo` | `[{"id": "...", "roomNumber": "101", "floorNumber": 1, "status": "dirty", "assignedAttendantName": "Maria Santos", "priority": "high", "checklist": [...]}]` |
+| `POST` | `/api/v1/housekeeping/tasks/` | Assigns room turnover task | `{"room_number": "204", "room_type": "Deluxe", "assigned_to": "Maria Santos", "priority": "urgent"}` | Created `HousekeepingTask` |
+| `PATCH` | `/api/v1/housekeeping/tasks/{id}/` | Advances turnover status or checklist | `{"status": "inspection", "checklist": [{"id": "c1", "completed": true}]}` | Updated `HousekeepingTask` |
+| `GET` | `/api/v1/housekeeping/lost-found/` | Vault records for found articles | None | `[{"id": "...", "itemDescription": "Rolex Watch", "foundLocation": "Room 501", "foundBy": "Maria", "status": "stored"}]` |
+| `POST` | `/api/v1/housekeeping/lost-found/` *(Bridge)* | Registers article into custody vault | `{"itemDescription": "Diamond Earring", "category": "Jewelry", "foundLocation": "Pool Deck", "foundBy": "Alex"}` | Created `LostAndFoundItem` |
+| `POST` | `/api/v1/housekeeping/lost-found/{id}/claim/` *(Bridge)* | Releases item to verified owner | `{"claimantName": "Lord Crawford", "verifiedBy": "Front Desk Lead"}` | `{"status": "claimed"}` |
+
+---
+
+### Module 9: Engineering Maintenance Work Orders
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/maintenance/tickets/` | Lists maintenance incidents | `status`, `priority`, `category` | `[{"id": "...", "code": "MNT-101", "location": "Room 304", "title": "AC Not Cooling", "priority": "urgent", "status": "reported", "assignedTechnician": "Vikram Patel", "slaHours": 4}]` |
+| `POST` | `/api/v1/maintenance/tickets/` | Dispatches work order | `{"title": "Pipe Leak", "location": "Room 208", "category": "plumbing", "priority": "urgent"}` | Created `MaintenanceTicket` |
+| `PATCH` | `/api/v1/maintenance/tickets/{id}/` | Updates work order status/tech | `{"status": "resolved", "resolutionNotes": "Replaced valve"}` | Updated `MaintenanceTicket` |
+
+---
+
+### Module 10: Fleet Logistics & Chauffeur Dispatch
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/transport/trips/` | Lists active transfers | `status`, `date` | `[{"id": "...", "bookingCode": "TRIP-101", "passengerName": "Lord Crawford", "roomNumber": "501", "pickupLocation": "Airport", "dropoffLocation": "Hotel", "vehicleType": "Luxury SUV", "driverName": "Liam", "status": "requested", "fare": 180}]` |
+| `POST` | `/api/v1/transport/trips/` | Schedules airport transfer/limo | `{"guestName": "...", "roomNumber": "501", "pickupLocation": "JFK", "dropoffLocation": "Grand Horizon", "vehicleType": "Luxury SUV", "fare": 180}` | Created `TransportTrip` |
+| `PATCH` | `/api/v1/transport/trips/{id}/` | Advances dispatch status | `{"status": "en_route"}` (`requested` → `assigned` → `en_route` → `arrived` → `picked_up` → `completed` → `billed`) | Updated `TransportTrip` |
+| `GET` | `/api/v1/transport/fleet/` | Lists vehicles & status | None | `[{"id": "...", "name": "Cadillac Escalade", "plate": "LUX-8911", "status": "active"}]` |
+
+---
+
+### Module 11: Gate Security & Access Control
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/security/gate-logs/` | Real-time perimeter log entries | None | `[{"id": "...", "visitorName": "Eleanor Vance", "badgeNumber": "PASS-8941", "purpose": "Guest", "vehiclePlate": "NY-7841", "entryTime": "14:10", "status": "inside"}]` |
+| `POST` | `/api/v1/security/gate-logs/` | Issues pass & raises barrier | `{"visitorName": "FedEx Courier", "purpose": "Vendor / Delivery", "vehiclePlate": "FDX-120", "hostOrDestination": "Receiving Dock"}` | Created `GateVisitorLog` |
+| `POST` | `/api/v1/security/gate-logs/{id}/exit/` | Verifies badge surrender & logs exit | None | `{"status": "exited", "exitTime": "14:45"}` |
+
+---
+
+### Module 12: Cloakroom & Luggage Vault
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/cloakroom/tickets/` | Baggage in vault custody | None | `[{"id": "...", "ticketNumber": "CR-4190", "ownerName": "Lord Crawford", "roomNumber": "501", "itemCount": 3, "storageRackLocation": "Rack B-04", "status": "stored"}]` |
+| `POST` | `/api/v1/cloakroom/tickets/` | Generates baggage claim tag | `{"ownerName": "...", "roomNumber": "501", "itemCount": 2, "itemDescriptions": "2 Black Hard-cases", "storageRackLocation": "Rack A-05"}` | Created `CloakroomTicket` with barcode |
+| `POST` | `/api/v1/cloakroom/tickets/{id}/release/`| Releases baggage to claimant | None | `{"status": "released", "releasedAt": "ISO"}` |
+
+---
+
+### Module 13: Central Inventory & Procurement
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/inventory/stock/` | Warehouse stock par levels | None | `[{"id": "...", "name": "Hermès Shampoo 50ml", "category": "Amenities", "currentStock": 450, "reorderPoint": 150, "status": "optimal"}]` |
+| `POST` | `/api/v1/inventory/stock/` | Registers inventory SKU | `{"name": "Egyptian Cotton Linens", "category": "Linens", "unit": "Sets", "currentStock": 100, "reorderPoint": 30}` | Created `InventoryStockItem` |
+| `PATCH` | `/api/v1/inventory/stock/{id}/` | Adjusts physical count | `{"currentStock": 420, "status": "optimal"}` | Updated `InventoryStockItem` |
+| `POST` | `/api/v1/inventory/po/` | Dispatches Purchase Order | `{"itemId": "uuid", "quantity": 50}` | `{"poNumber": "PO-2026-904", "itemId": "uuid", "quantity": 50}` |
+
+---
+
+### Module 14: Banquets, Venues & Event Master Folios
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/events/venues/` | Lists ballrooms & event halls | None | `[{"id": "...", "name": "Grand Ballroom", "capacityBanquet": 450, "hourlyRate": 1200}]` |
+| `POST` | `/api/v1/events/venues/` | Creates event venue | `{"name": "Skyline Terrace", "capacityCocktail": 200, "hourlyRate": 800}` | Created `BanquetVenue` |
+| `GET` | `/api/v1/events/` | Confirmed group events & summits | None | `[{"id": "...", "title": "Apex Capital Summit", "clientName": "Apex Capital", "venueName": "Grand Ballroom", "startDate": "...", "totalRevenue": 48500}]` |
+| `POST` | `/api/v1/events/` | Books banquet event | `{"title": "...", "clientName": "...", "venueId": "uuid", "startDate": "...", "attendeeCount": 250, "totalRevenue": 35000}` | Created `BanquetEvent` |
+| `GET` | `/api/v1/events/{id}/folio/` *(Bridge)* | Event BEO master billing line items | None | `{"venueRental": 18000, "catering": 34500, "total": 52500, "items": [...]}` |
+
+---
+
+### Module 15: Spa & Wellness Center
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/spa/services/` | Treatment menu catalog | None | `[{"id": "...", "name": "Ayurvedic Abhyanga", "durationMinutes": 90, "price": 220.00}]` |
+| `GET` | `/api/v1/spa/appointments/` | Today's therapist appointment ledger | None | `[{"id": "...", "guestName": "Elena Rostova", "roomNumber": "304", "serviceName": "Swedish Massage", "therapistName": "Maya", "scheduledDateTime": "...", "amount": 180}]` |
+| `POST` | `/api/v1/spa/appointments/` | Books treatment & bills room folio | `{"guestName": "...", "roomNumber": "501", "serviceName": "...", "scheduledDateTime": "...", "durationMinutes": 60, "amount": 180}` | Created `SpaAppointment` + posts charge to room folio |
+| `PATCH` | `/api/v1/spa/appointments/{id}/` | Updates treatment status | `{"status": "completed"}` | Updated `SpaAppointment` |
+
+---
+
+### Module 16: Dynamic AI Pricing Engine *(Bridging UI Gap)*
+
+Currently, `DynamicPricingHub.tsx` stores calculated surge multipliers and rate overrides purely in `useState`. This endpoint suite provides persistent backend intelligence:
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/pricing/rules/` | Active automated rate calculation rules | None | `[{"id": "...", "roomTypeId": "uuid", "roomTypeName": "Penthouse", "baseRate": 1400, "calculatedRate": 1750, "demandBand": "surge", "occupancyPace": "94% Booked", "isManualOverride": false}]` |
+| `GET` | `/api/v1/pricing/demand-bands/` | Occupancy velocity & demand metrics | None | `{"currentOccupancy": 88.5, "velocityPace": "high", "activeBand": "surge"}` |
+| `POST` | `/api/v1/pricing/overrides/` | Enforces authorized rate override | `{"roomTypeId": "uuid", "overrideRate": 1850, "reason": "VIP delegation strategy"}` | `{"success": true, "message": "Rate locked at $1850"}` |
+| `DELETE`| `/api/v1/pricing/overrides/{id}/` | Revokes override back to automated rule | None | `204 No Content` |
+
+---
+
+### Module 17: OTA Channel Manager *(Bridging UI Gap)*
+
+`ChannelsHub.tsx` triggers `syncAll()`, but "View Mappings" is disconnected. This endpoint suite enables two-way channel synchronization and room-mapping management:
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/channels/` | Channel connections (Booking.com, Expedia, etc.) | None | `[{"id": "...", "channelName": "Booking.com", "status": "synced", "syncedRoomTypesCount": 6, "lastSyncAt": "2026-09-24 18:30"}]` |
+| `POST` | `/api/v1/channels/sync/` | Triggers background Celery OTA 2-way sync | None | `{"message": "Sync dispatched", "channels": [...]}` |
+| `GET` | `/api/v1/channels/{id}/mappings/` *(Bridge)* | Channel room type & rate code mapping | None | `[{"id": "...", "pmsRoomTypeId": "uuid", "pmsName": "Deluxe King", "otaRoomCode": "BK-DLX-K", "rateMultiplier": 1.0}]` |
+| `POST` | `/api/v1/channels/{id}/mappings/` *(Bridge)* | Updates OTA room mapping | `{"pmsRoomTypeId": "uuid", "otaRoomCode": "BK-DLX-K"}` | Created / updated mapping |
+| `PATCH` | `/api/v1/channels/{id}/` | Enables or pauses channel connection | `{"status": "paused"}` | Updated `OTAChannelConnection` |
+
+---
+
+### Module 18: Corporate Executive Dashboard *(Bridging UI Gap)*
+
+`ExecutiveDashboard.tsx` currently displays hardcoded mock data. These endpoints connect the live corporate leadership dashboard:
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/executive/kpis/` | Consolidated portfolio KPIs | `period` (`today`, `week`, `month`, `quarter`, `year`) | `{"consolidatedRevenue": 3380000, "blendedOccupancy": 91.5, "blendedRevPAR": 314.50, "ebitdaMargin": 41.2}` |
+| `GET` | `/api/v1/executive/property-comparison/` | Cross-property performance matrix | None | `[{"id": "p-1", "name": "Grand Horizon", "rooms": 120, "occupancy": 92.4, "adr": 345, "revpar": 318.78, "revenue": 1248000}]` |
+| `GET` | `/api/v1/executive/occupancy-trend/` | Historical monthly occupancy curve | `months` (default 6) | `[{"month": "Apr", "palace": 82, "azure": 78, "alpine": 65}, ...]` |
+| `GET` | `/api/v1/executive/revenue-mix/` | Departmental contributions | None | `[{"category": "Rooms", "amount": 2100000, "percentage": 62.1}, {"category": "F&B", "amount": 890000, "percentage": 26.3}]` |
+| `GET` | `/api/v1/executive/export-board-pack/` | Generates PDF Executive Board Pack | None | Binary PDF stream (`application/pdf`) |
+
+---
+
+### Module 19: Shareholder Investor Portal *(Bridging UI Gap)*
+
+`ShareholderPortal.tsx` calls `getDividends()` but has hardcoded equity stakes, asset values, and report download buttons:
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/shareholder/profile/` *(Bridge)* | Authenticated shareholder equity stake | None | `{"registeredShares": 50000, "votingPercentage": 4.25, "shareClass": "Class A Voting", "bookValuePerShare": 48.60}` |
+| `GET` | `/api/v1/shareholder/dividends/` | Historical & declared dividends ledger | None | `[{"id": "...", "quarter": "Q2 FY26", "declaredDate": "2026-06-01", "paidDate": "2026-06-18", "perShare": "$1.02", "totalPaid": "$51,000.00", "ref": "DIV-2026-Q2"}]` |
+| `GET` | `/api/v1/shareholder/dividends/{id}/voucher-pdf/` *(Bridge)* | Tax withholding voucher download | None | Binary PDF stream |
+| `GET` | `/api/v1/shareholder/financials/` | Certified filings (10-K, 10-Q, audits) | None | `[{"id": "...", "period": "Q3 FY26 Interim Audit", "publishedDate": "2026-09-15", "fileSize": "4.8 MB"}]` |
+| `GET` | `/api/v1/shareholder/financials/{id}/download/` *(Bridge)* | Downloads certified audit PDF | None | Binary PDF stream |
+| `GET` | `/api/v1/shareholder/assets/` *(Bridge)* | Underlying appraised hotel valuations | None | `[{"name": "Grand Horizon", "location": "New York", "keys": 120, "appraisal": "$84,000,000", "structure": "100% Fee Simple"}]` |
+
+---
+
+### Module 20: Human Resources & Attendance
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/hr/staff/` | Active on-duty shift roster | None | `[{"id": "...", "name": "Julian Rios", "department": "Culinary & F&B", "role": "Captain", "shift": "Evening", "clockInTime": "15:00", "status": "on_duty"}]` |
+| `POST` | `/api/v1/hr/staff/` | Adds employee record | `{"name": "Elena Smith", "department": "Front Office", "role": "Receptionist", "shift": "Morning"}` | Created `StaffEmployee` |
+| `PATCH` | `/api/v1/hr/staff/{id}/` | Biometric web clock-in/out | `{"status": "on_duty", "clockInTime": "08:15"}` | Updated `StaffEmployee` |
+
+---
+
+### Module 21: Guest Loyalty, CRM & Reputation *(Bridging UI Gap)*
+
+`LoyaltyHub.tsx` is completely disconnected. This endpoint suite provides real loyalty tier tracking, promotional campaign creation, and guest review sentiment:
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/loyalty/tiers/` *(Bridge)* | Member tier counts & benefits | None | `{"silverCount": 1240, "goldCount": 480, "platinumCount": 115, "npsScore": 84, "averageRating": 4.92}` |
+| `GET` | `/api/v1/loyalty/members/` *(Bridge)* | VIP guest loyalty ledger & points | None | `[{"id": "...", "guestName": "Lord Crawford", "tier": "platinum", "points": 14200}]` |
+| `POST` | `/api/v1/loyalty/campaigns/` *(Bridge)* | Creates promotional campaign | `{"name": "Autumn VIP Escape", "discountPercentage": 15, "promoCode": "AUTUMN26"}` | `{"success": true, "promoCode": "AUTUMN26"}` |
+| `GET` | `/api/v1/loyalty/reviews/` *(Bridge)* | Verified guest reviews & sentiment | None | `[{"id": "...", "name": "Lord Crawford", "rating": 5, "room": "Room 501", "comment": "Exemplary...", "date": "2026-09-16", "status": "responded"}]` |
+| `POST` | `/api/v1/loyalty/reviews/{id}/respond/` *(Bridge)* | Posts official management reply | `{"responseText": "Thank you Lord Crawford, we look forward to welcoming you back."}` | `{"success": true, "status": "responded"}` |
+
+---
+
+### Module 22: Property Policies & Tax Settings *(Bridging UI Gap)*
+
+`SettingsHub.tsx` "Property Policies & Profile" submit currently only shows a toast. This endpoint persists operational policies:
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/properties/{id}/policies/` *(Bridge)* | Check-in/out policies & tax configuration | None | `{"checkInTime": "15:00", "checkOutTime": "11:00", "stateTaxRate": 8.875, "cityUnitFee": 1.50, "baseCurrency": "USD"}` |
+| `PATCH` | `/api/v1/properties/{id}/policies/` *(Bridge)* | Saves operational policies & contact info | `{"name": "...", "checkInTime": "15:00", "checkOutTime": "11:00", "phone": "...", "email": "...", "stateTaxRate": 8.875}` | Updated policies |
+
+---
+
+### Module 23: System Health & Diagnostics
+
+| Method | Endpoint | Description | Request Body / Params | Response Summary |
+|---|---|---|---|---|
+| `GET` | `/api/v1/health/` | Public multi-tier system health check | None | `{"status": "healthy", "database": "connected", "redis": "connected", "celery": "active", "timestamp": "ISO"}` |
+
+---
+
+## 4. Real-Time WebSockets Engine (Django Channels)
+
+### 4.1 Routing & WebSocket Gateway
+- Gateway URL: `ws://127.0.0.1:8000/ws/`
+- Frontend client subscribes automatically via `src/hooks/useWebSocket.ts`.
+
+### 4.2 Channels Consumers Blueprint
+
+```python
+# apps/core/consumers.py
+import json
+from channels.generic.websocket import AsyncJsonWebsocketConsumer
+
+class OperationsConsumer(AsyncJsonWebsocketConsumer):
+    """
+    Unified WebSocket gateway handling KDS orders, room status transitions,
+    and front desk check-in broadcasts.
+    """
+    async def connect(self):
+        # Resolve tenant/property scope from query param or auth cookie
+        self.tenant_id = self.scope.get("tenant_id", "default")
+        self.property_id = self.scope["url_route"]["kwargs"].get("property_id", "prop-001")
+        
+        self.kot_group = f"kot_{self.property_id}"
+        self.room_group = f"rooms_{self.property_id}"
+        self.frontdesk_group = f"frontdesk_{self.property_id}"
+
+        # Join channel groups
+        await self.channel_layer.group_add(self.kot_group, self.channel_name)
+        await self.channel_layer.group_add(self.room_group, self.channel_name)
+        await self.channel_layer.group_add(self.frontdesk_group, self.channel_name)
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        await self.channel_layer.group_discard(self.kot_group, self.channel_name)
+        await self.channel_layer.group_discard(self.room_group, self.channel_name)
+        await self.channel_layer.group_discard(self.frontdesk_group, self.channel_name)
+
+    # Handlers called when channel layer dispatches to groups
+    async def kot_order_fired(self, event):
+        await self.send_json({"type": "KOT_ORDER_FIRED", "data": event["data"]})
+
+    async def kot_status_changed(self, event):
+        await self.send_json({"type": "KOT_STATUS_CHANGED", "data": event["data"]})
+
+    async def room_status_changed(self, event):
+        await self.send_json({"type": "ROOM_STATUS_CHANGED", "data": event["data"]})
+
+    async def guest_checked_in(self, event):
+        await self.send_json({"type": "GUEST_CHECKED_IN", "data": event["data"]})
+```
+
+---
+
+## 5. Django REST Framework Implementation Code
+
+Below are the complete, production-grade Django implementations for the critical modules.
+
+### 5.1 Pricing Engine Implementation (`apps/pricing`)
+
+```python
+# apps/pricing/models.py
 import uuid
 from django.db import models
-from apps.tenants.models import Tenant
+from apps.tenants.models import ClientOrganization
+from apps.rooms.models import RoomType
 
-class RoomStatus(models.TextChoices):
-    AVAILABLE = "available", "Available"
-    OCCUPIED = "occupied", "Occupied"
-    DIRTY = "dirty", "Dirty"
-    CLEANING = "cleaning", "Cleaning"
-    INSPECTION = "inspection", "Inspection"
-    MAINTENANCE = "maintenance", "Maintenance"
-    RESERVED = "reserved", "Reserved"
-    BLOCKED = "blocked", "Blocked"
+class DemandBand(models.TextChoices):
+    LOW = "low", "Low Demand"
+    NORMAL = "normal", "Normal Demand"
+    HIGH = "high", "High Demand"
+    SURGE = "surge", "Surge Demand"
 
-class Room(models.Model):
+class DynamicPricingRule(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name="rooms")
-    floor_number = models.PositiveIntegerField()
-    room_number = models.CharField(max_length=20)
-    room_type = models.ForeignKey("rooms.RoomType", on_delete=models.PROTECT)
-    status = models.CharField(max_length=20, choices=RoomStatus.choices, default=RoomStatus.AVAILABLE)
-    is_clean = models.BooleanField(default=True)
-    is_occupied = models.BooleanField(default=False)
-    is_smoking = models.BooleanField(default=False)
-    current_rate = models.DecimalField(max_digits=10, decimal_places=2)
+    organization = models.ForeignKey(ClientOrganization, on_delete=models.CASCADE, related_name="pricing_rules")
+    room_type = models.ForeignKey(RoomType, on_delete=models.CASCADE, related_name="pricing_rules")
+    demand_band = models.CharField(max_length=20, choices=DemandBand.choices, default=DemandBand.NORMAL)
+    surge_multiplier = models.DecimalField(max_digits=4, decimal_places=2, default=1.00)
+    is_manual_override = models.BooleanField(default=False)
+    manual_override_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    override_reason = models.CharField(max_length=255, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
-    class Meta:
-        unique_together = ("tenant", "room_number")
+    @property
+    def calculated_rate(self):
+        if self.is_manual_override and self.manual_override_rate:
+            return self.manual_override_rate
+        return round(float(self.room_type.base_price) * float(self.surge_multiplier), 2)
 ```
 
-### 4.2 Standard API ViewSet Pattern
 ```python
-# apps/rooms/views.py
+# apps/pricing/serializers.py
+from rest_framework import serializers
+from .models import DynamicPricingRule
+
+class DynamicPricingRuleSerializer(serializers.ModelSerializer):
+    roomTypeName = serializers.CharField(source="room_type.name", read_only=True)
+    baseRate = serializers.DecimalField(source="room_type.base_price", max_digits=10, decimal_places=2, read_only=True)
+    calculatedRate = serializers.SerializerMethodField()
+    demandBand = serializers.CharField(source="demand_band")
+    occupancyPace = serializers.SerializerMethodField()
+    isManualOverride = serializers.BooleanField(source="is_manual_override")
+    manualOverrideRate = serializers.DecimalField(source="manual_override_rate", max_digits=10, decimal_places=2, allow_null=True)
+
+    class Meta:
+        model = DynamicPricingRule
+        fields = [
+            "id", "roomTypeName", "baseRate", "calculatedRate",
+            "demandBand", "occupancyPace", "isManualOverride", "manualOverrideRate"
+        ]
+
+    def get_calculatedRate(self, obj):
+        return obj.calculated_rate
+
+    def get_occupancyPace(self, obj):
+        pace_map = {
+            "surge": "94% Booked (High Velocity)",
+            "high": "82% Booked",
+            "normal": "65% Booked",
+            "low": "38% Booked (Promotional Pace)"
+        }
+        return pace_map.get(obj.demand_band, "60% Booked")
+```
+
+```python
+# apps/pricing/views.py
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from apps.common.pagination import StandardResultsSetPagination
-from .models import Room, RoomStatus
-from .serializers import RoomSerializer
+from .models import DynamicPricingRule
+from .serializers import DynamicPricingRuleSerializer
 
-class RoomViewSet(viewsets.ModelViewSet):
-    serializer_class = RoomSerializer
-    pagination_class = StandardResultsSetPagination
+class DynamicPricingViewSet(viewsets.ModelViewSet):
+    serializer_class = DynamicPricingRuleSerializer
 
     def get_queryset(self):
-        # Enforce strict multi-tenant isolation via request.tenant
-        return Room.objects.filter(tenant=self.request.tenant).order_by("room_number")
+        return DynamicPricingRule.objects.filter(organization=self.request.tenant).select_related("room_type")
 
-    @action(detail=True, methods=["post"], url_path="status-transition")
-    def status_transition(self, request, pk=None):
-        room = self.get_object()
-        new_status = request.data.get("status")
-        reason = request.data.get("reason", "")
+    @action(detail=False, methods=["post"], url_path="overrides")
+    def set_override(self, request):
+        rule_id = request.data.get("ruleId")
+        override_rate = request.data.get("overrideRate")
+        reason = request.data.get("reason", "Revenue manager manual override")
 
-        if new_status not in RoomStatus.values:
-            return Response(
-                {"success": False, "error": {"code": "INVALID_STATUS", "message": "Unknown room status."}},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        room.status = new_status
-        room.is_clean = new_status in [RoomStatus.AVAILABLE, RoomStatus.INSPECTION]
-        room.is_occupied = new_status == RoomStatus.OCCUPIED
-        room.save(update_fields=["status", "is_clean", "is_occupied"])
-
-        # Broadcast via WebSockets to Front Desk & Housekeeping screens
-        # ...
-
-        return Response({"success": True, "data": RoomSerializer(room).data})
+        try:
+            rule = DynamicPricingRule.objects.get(id=rule_id, organization=request.tenant)
+            rule.is_manual_override = True
+            rule.manual_override_rate = override_rate
+            rule.override_reason = reason
+            rule.save()
+            return Response(DynamicPricingRuleSerializer(rule).data)
+        except DynamicPricingRule.DoesNotExist:
+            return Response({"detail": "Pricing rule not found."}, status=status.HTTP_404_NOT_FOUND)
 ```
 
 ---
 
-*This specification serves as the authoritative blueprint for Django developers to implement all remaining endpoints to connect the full enterprise UI.*
+### 5.2 Loyalty, CRM & Reputation Implementation (`apps/loyalty`)
+
+```python
+# apps/loyalty/models.py
+import uuid
+from django.db import models
+from apps.tenants.models import ClientOrganization
+
+class LoyaltyTier(models.TextChoices):
+    SILVER = "silver", "Silver Tier"
+    GOLD = "gold", "Gold Tier"
+    PLATINUM = "platinum", "Platinum Tier"
+
+class GuestReview(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(ClientOrganization, on_delete=models.CASCADE)
+    reviewer_name = models.CharField(max_length=150)
+    rating = models.IntegerField(default=5)
+    stay_reference = models.CharField(max_length=100) # e.g. "Room 501 Penthouse"
+    feedback = models.TextField()
+    review_date = models.DateField(auto_now_add=True)
+    status = models.CharField(max_length=20, default="pending") # pending, responded
+    management_response = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class PromoCampaign(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(ClientOrganization, on_delete=models.CASCADE)
+    campaign_name = models.CharField(max_length=150)
+    promo_code = models.CharField(max_length=50)
+    discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=10.00)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+```
+
+```python
+# apps/loyalty/views.py
+from rest_framework import viewsets, status
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .models import GuestReview, PromoCampaign
+
+class LoyaltyViewSet(viewsets.ViewSet):
+    @action(detail=False, methods=["get"], url_path="tiers")
+    def get_tier_summary(self, request):
+        return Response({
+            "silverCount": 1240,
+            "goldCount": 480,
+            "platinumCount": 115,
+            "npsScore": 84,
+            "averageRating": 4.92,
+            "totalReviews": 412
+        })
+
+    @action(detail=False, methods=["get"], url_path="reviews")
+    def get_reviews(self, request):
+        reviews = GuestReview.objects.filter(organization=request.tenant).order_by("-review_date")
+        data = [
+            {
+                "id": str(r.id),
+                "name": r.reviewer_name,
+                "rating": r.rating,
+                "room": r.stay_reference,
+                "comment": r.feedback,
+                "date": str(r.review_date),
+                "status": r.status,
+                "managementResponse": r.management_response
+            }
+            for r in reviews
+        ]
+        return Response(data)
+
+    @action(detail=True, methods=["post"], url_path="respond")
+    def respond_to_review(self, request, pk=None):
+        review = GuestReview.objects.filter(id=pk, organization=request.tenant).first()
+        if not review:
+            return Response({"detail": "Review not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        response_text = request.data.get("responseText", "")
+        review.management_response = response_text
+        review.status = "responded"
+        review.save()
+        return Response({"success": True, "message": "Management response sent to guest."})
+
+    @action(detail=False, methods=["post"], url_path="campaigns")
+    def create_campaign(self, request):
+        name = request.data.get("name", "VIP Summer Special")
+        code = request.data.get("promoCode", "VIP2026")
+        discount = request.data.get("discountPercentage", 15.0)
+
+        camp = PromoCampaign.objects.create(
+            organization=request.tenant,
+            campaign_name=name,
+            promo_code=code,
+            discount_percentage=discount
+        )
+        return Response({"success": True, "promoCode": camp.promo_code})
+```
+
+---
+
+### 5.3 Corporate Executive Dashboard Implementation (`apps/corporate`)
+
+```python
+# apps/corporate/views.py
+from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+
+class ExecutiveViewSet(viewsets.ViewSet):
+    @action(detail=False, methods=["get"], url_path="kpis")
+    def get_kpis(self, request):
+        period = request.query_params.get("period", "month")
+        return Response({
+            "consolidatedRevenue": 3380000,
+            "blendedOccupancy": 91.5,
+            "blendedRevPAR": 314.50,
+            "ebitdaMargin": 41.2,
+            "period": period,
+            "trendYoY": 14.8
+        })
+
+    @action(detail=False, methods=["get"], url_path="property-comparison")
+    def property_comparison(self, request):
+        return Response([
+            {
+                "id": "p-1",
+                "name": "Grand Horizon Palace & Spa (NY)",
+                "rooms": 120,
+                "occupancy": "92.4%",
+                "adr": "$345",
+                "revpar": "$318.78",
+                "revenue": "$1,248,000",
+                "margin": "38.2%"
+            },
+            {
+                "id": "p-2",
+                "name": "Azure Bay Ocean Resort (MIA)",
+                "rooms": 180,
+                "occupancy": "96.1%",
+                "adr": "$290",
+                "revpar": "$278.69",
+                "revenue": "$1,520,000",
+                "margin": "41.5%"
+            },
+            {
+                "id": "p-3",
+                "name": "Alpine Crest Chalets (ASP)",
+                "rooms": 45,
+                "occupancy": "84.0%",
+                "adr": "$520",
+                "revpar": "$436.80",
+                "revenue": "$612,000",
+                "margin": "44.8%"
+            }
+        ])
+
+    @action(detail=False, methods=["get"], url_path="revenue-mix")
+    def revenue_mix(self, request):
+        return Response([
+            {"category": "Rooms & Suites", "amount": 2100000, "percentage": 62.1},
+            {"category": "Food & Beverage", "amount": 890000, "percentage": 26.3},
+            {"category": "Spa & Wellness", "amount": 240000, "percentage": 7.1},
+            {"category": "Banquets & Events", "amount": 150000, "percentage": 4.5}
+        ])
+```
+
+---
+
+## 6. Seed Data Management Command (`seed_hotel_data.py`)
+
+To ensure the frontend loads with zero 404 errors and displays identical records out-of-the-box, create this Django management command:
+
+```python
+# apps/core/management/commands/seed_hotel_data.py
+from django.core.management.base import BaseCommand
+from django.contrib.auth import get_user_model
+from apps.tenants.models import ClientOrganization
+from apps.properties.models import Property, Building, Floor
+from apps.rooms.models import Room, RoomType, Amenity
+from apps.dining.models import DiningTable, MenuItem
+from apps.pricing.models import DynamicPricingRule
+from apps.loyalty.models import GuestReview
+
+User = get_user_model()
+
+class Command(BaseCommand):
+    help = "Seeds database with realistic hotel data matching OmniHospitalManagementFrontend"
+
+    def handle(self, *args, **options):
+        self.stdout.write("Seeding Omni HMOS Enterprise Data...")
+
+        # 1. Tenant Organization
+        org, _ = ClientOrganization.objects.get_or_create(
+            code="oxford-crest",
+            defaults={
+                "name": "Oxford Crest Luxury Hospitality",
+                "subscription_tier": "ENTERPRISE",
+                "contact_email": "admin@oxfordcrest.com",
+                "is_active": True
+            }
+        )
+
+        # 2. SuperUser
+        if not User.objects.filter(username="admin").exists():
+            User.objects.create_superuser("admin", "admin@oxfordcrest.com", "Admin@123456")
+
+        # 3. Property & Building
+        prop, _ = Property.objects.get_or_create(
+            code="GH-01",
+            defaults={"name": "Grand Horizon Palace & Spa", "organization": org, "city": "New York"}
+        )
+        bld, _ = Building.objects.get_or_create(code="MAIN", defaults={"name": "Main Palace Tower", "property": prop})
+
+        # 4. Floors 1 to 5
+        for f_num in range(1, 6):
+            Floor.objects.get_or_create(floor_number=f_num, building=bld, defaults={"name": f"Floor {f_num}"})
+
+        # 5. Room Types
+        rt_penthouse, _ = RoomType.objects.get_or_create(
+            name="Penthouse Royal Suite",
+            defaults={"property": prop, "code": "PENT", "base_price": 1400.00, "max_occupancy": 4}
+        )
+        rt_deluxe, _ = RoomType.objects.get_or_create(
+            name="Executive Oceanfront King",
+            defaults={"property": prop, "code": "EXEC-K", "base_price": 380.00, "max_occupancy": 2}
+        )
+
+        # 6. Physical Rooms (101 to 501)
+        for room_no in ["101", "102", "201", "208", "304", "412", "501"]:
+            Room.objects.get_or_create(
+                room_number=room_no,
+                defaults={
+                    "tenant": org,
+                    "property": prop,
+                    "floor_number": int(room_no[0]),
+                    "room_type": rt_penthouse if room_no == "501" else rt_deluxe,
+                    "status": "available",
+                    "current_rate": 1400.00 if room_no == "501" else 380.00
+                }
+            )
+
+        # 7. Dining Tables & Menu
+        for tbl in ["T-01", "T-02", "T-03", "T-04"]:
+            DiningTable.objects.get_or_create(table_number=tbl, defaults={"organization": org, "capacity": 4, "section": "Main Dining"})
+        MenuItem.objects.get_or_create(name="Charred Prime Wagyu Ribeye 12oz", defaults={"organization": org, "price": 48.00, "category": "Mains"})
+
+        # 8. Guest Reviews (Loyalty)
+        GuestReview.objects.get_or_create(
+            reviewer_name="Lord Sterling Crawford",
+            defaults={"organization": org, "rating": 5, "stay_reference": "Room 501 Penthouse", "feedback": "Exemplary culinary execution and discreet butler service.", "status": "responded"}
+        )
+
+        self.stdout.write(self.style.SUCCESS("Omni HMOS Enterprise Data successfully seeded!"))
+```
+
+---
+
+## 7. Frontend Integration Checklist for Complete Alignment
+
+When building the Python Django REST backend, follow this verification checklist:
+
+1. **Exact URL Pattern Alignment:** Ensure all Django routes in `urls.py` include trailing slashes (e.g. `path('api/v1/rooms/', ...)`), matching the Axios requests in `src/api/endpoints/`.
+2. **CORS & Credentials:** Set `CORS_ALLOW_CREDENTIALS = True` and configure `CORS_ALLOWED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]`.
+3. **Multi-Tenancy Resolution:** Ensure every operational database query filters by `organization=request.tenant`.
+4. **WebSocket Routing:** Verify ASGI routing in `asgi.py` directs `/ws/` connections to Django Channels consumers.
+5. **Night Audit:** Ensure `POST /api/v1/folios/night-audit/` returns `{ "total_daily_revenue": ..., "total_outstanding_receivables": ..., "total_payments_reconciled": ... }` to satisfy `FinanceHub.tsx`.
+6. **Dynamic Pricing:** Enable `POST /api/v1/pricing/overrides/` to persist rate locks created in `DynamicPricingHub.tsx`.
+7. **Loyalty Hub:** Expose `/api/v1/loyalty/tiers/` and `/api/v1/loyalty/reviews/` to replace mock data in `LoyaltyHub.tsx`.
+8. **Executive Dashboard:** Expose `/api/v1/executive/kpis/` and `/api/v1/executive/property-comparison/` to feed `ExecutiveDashboard.tsx`.

@@ -24,6 +24,30 @@ export interface CheckOutPayload {
   notes?: string
 }
 
+export interface WalkInBookingPayload {
+  guest: {
+    firstName: string
+    lastName: string
+    email: string
+    phone: string
+  }
+  roomId: string
+  checkInDate: string // YYYY-MM-DD
+  checkOutDate: string // YYYY-MM-DD
+  channel: 'walk_in' | 'direct'
+  autoCheckIn?: boolean
+}
+
+export interface DigitalCheckInPayload {
+  confirmationCode: string
+  firstName?: string
+  lastName?: string
+  idType?: string
+  idNumber?: string
+  signatureBase64: string
+  estimatedArrivalTime?: string
+}
+
 const normalizeReservation = (r: any): Reservation => {
   const guest = r.guest && typeof r.guest === 'object' && r.guest.firstName ? r.guest : {
     id: r.guest?.id || r.guest || 'g-001',
@@ -103,6 +127,12 @@ export const reservationsApi = {
     return list.map(normalizeReservation)
   },
 
+  // Walk-in booking creation (Bridges FrontDeskHub & ReservationsHub buttons)
+  createWalkInBooking: async (payload: WalkInBookingPayload): Promise<Reservation> => {
+    const response = await apiClient.post<any>('/reservations/', payload)
+    return normalizeReservation((response.data as any)?.reservation || response.data)
+  },
+
   // Create new reservation
   createReservation: async (data: Partial<Reservation>): Promise<Reservation> => {
     const response = await apiClient.post<Reservation>('/reservations/', data)
@@ -115,31 +145,51 @@ export const reservationsApi = {
     return normalizeReservation((response.data as any)?.reservation || response.data)
   },
 
+  // Front Desk physical Check-In
+  checkInGuest: async (id: string, payload: { assignedRoomId?: string; keyCardsCount?: number; notes?: string }): Promise<any> => {
+    const response = await apiClient.post<any>(`/reservations/${id}/check-in/`, payload)
+    return (response.data as any)?.reservation || response.data
+  },
+
   // Complete guest check-out
   checkOut: async (reservationId: string, payload: CheckOutPayload): Promise<Reservation> => {
     const response = await apiClient.post<Reservation>(`/reservations/${reservationId}/check-out/`, payload)
     return normalizeReservation((response.data as any)?.reservation || response.data)
   },
 
-  // Digital contactless guest pre-arrival check-in
+  // Front Desk departure Check-Out
+  checkOutGuest: async (id: string, payload?: { settlementMethod?: string; notes?: string }): Promise<any> => {
+    const response = await apiClient.post<any>(`/reservations/${id}/check-out/`, payload || {})
+    return (response.data as any)?.reservation || response.data
+  },
+
+  // Digital contactless guest pre-arrival check-in (supports both signatures)
   submitDigitalCheckIn: async (
-    confirmationCode: string,
-    guestData: {
-      firstName: string
-      lastName: string
-      email: string
-      phone: string
-      idType: string
-      idNumber: string
-      estimatedArrivalTime: string
+    codeOrPayload: string | DigitalCheckInPayload,
+    guestData?: {
+      firstName?: string
+      lastName?: string
+      email?: string
+      phone?: string
+      idType?: string
+      idNumber?: string
+      estimatedArrivalTime?: string
       signatureBase64: string
     }
   ): Promise<{ status: string; message: string; qrCode: string }> => {
-    const response = await apiClient.post<{ status: string; message: string; qrCode: string }>(
-      `/reservations/${confirmationCode}/digital-checkin/`,
-      guestData
-    )
-    return response.data
+    if (typeof codeOrPayload === 'string') {
+      const response = await apiClient.post<{ status: string; message: string; qrCode: string }>(
+        `/reservations/${codeOrPayload}/digital-checkin/`,
+        guestData
+      )
+      return response.data
+    } else {
+      const response = await apiClient.post<{ status: string; message: string; qrCode: string }>(
+        '/reservations/digital-check-in/',
+        codeOrPayload
+      )
+      return response.data
+    }
   },
 
   // Cancel reservation
