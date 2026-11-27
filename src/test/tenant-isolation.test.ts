@@ -38,16 +38,16 @@ describe('Tenant & Multi-Property Isolation Engine', () => {
   })
 
   it('manages active tenant context via Recipe D helpers and injects X-Tenant-ID', () => {
-    // 1. Set active tenant
+    // 1. Set active tenant - ID takes priority over slug in interceptor
     ;(apiClient as any).setActiveTenantId('tenant-uuid-456', 'grand-alpine')
     expect((apiClient as any).getActiveTenantId()).toBe('tenant-uuid-456')
 
-    // 2. Verify X-Tenant-ID injected into headers
+    // 2. Verify X-Tenant-ID injected into headers (uses ID since it was set)
     const dummyConfig = { headers: {} as Record<string, string> }
     const interceptor = (apiClient.interceptors.request as any).handlers[0].fulfilled
     const resultConfig = interceptor(dummyConfig)
 
-    expect(resultConfig.headers['X-Tenant-ID']).toBe('grand-alpine')
+    expect(resultConfig.headers['X-Tenant-ID']).toBe('tenant-uuid-456')
 
     // 3. Clear active tenant
     ;(apiClient as any).clearActiveTenantId()
