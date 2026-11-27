@@ -46,24 +46,24 @@ export const ILAPlatformLayout: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen w-full bg-slate-950 text-slate-100 flex flex-col selection:bg-purple-500/30">
+    <div className="min-h-screen w-full bg-slate-50 text-slate-900 flex flex-col selection:bg-purple-100 selection:text-purple-900">
       {/* Top Platform Command Header */}
-      <header className="sticky top-0 z-50 border-b border-purple-500/20 bg-slate-950/80 backdrop-blur-xl px-4 lg:px-8 py-3.5 flex items-center justify-between gap-4">
+      <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/90 backdrop-blur-xl px-4 lg:px-8 py-3.5 flex items-center justify-between gap-4 shadow-xs">
         {/* ILA Brand & Context */}
         <div className="flex items-center gap-3.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-amber-500 text-white shadow-lg shadow-purple-600/30 ring-1 ring-white/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-amber-500 text-white shadow-md shadow-purple-600/20">
             <Sparkles className="h-5 w-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-black text-lg tracking-tight bg-gradient-to-r from-purple-300 via-indigo-200 to-amber-300 bg-clip-text text-transparent">
+              <span className="font-black text-lg tracking-tight bg-gradient-to-r from-purple-700 via-indigo-700 to-amber-600 bg-clip-text text-transparent">
                 ILA SaaS
               </span>
-              <span className="rounded-md bg-purple-500/15 border border-purple-500/30 px-2 py-0.5 text-[10px] font-bold text-purple-300 uppercase tracking-widest">
+              <span className="rounded-md bg-purple-50 border border-purple-200 px-2 py-0.5 text-[10px] font-bold text-purple-700 uppercase tracking-widest">
                 Platform SuperAdmin
               </span>
             </div>
-            <p className="text-[11px] text-slate-400 hidden sm:block">
+            <p className="text-[11px] text-slate-500 hidden sm:block">
               Central Command Console • Software Segment & Tenant Infrastructure
             </p>
           </div>
@@ -72,26 +72,26 @@ export const ILAPlatformLayout: React.FC = () => {
         {/* Action Controls & Fast Tenant Switcher */}
         <div className="flex items-center gap-3 flex-wrap">
           {/* System Status Pill */}
-          <div className="hidden md:flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-400">
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+          <div className="hidden md:flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             <span>All Segments Operational</span>
           </div>
 
           {/* Quick Tenant Workspace Access / Impersonation Dropdown */}
-          <div className="hidden lg:flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1 text-xs">
-            <Building2 className="h-3.5 w-3.5 text-amber-400" />
-            <span className="text-[11px] text-slate-400">Inspect Segment:</span>
+          <div className="hidden lg:flex items-center gap-1.5 bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1 text-xs">
+            <Building2 className="h-3.5 w-3.5 text-amber-600" />
+            <span className="text-[11px] text-slate-500">Inspect Segment:</span>
             <select
               value={selectedClientToInspect}
               onChange={(e) => {
                 setSelectedClientToInspect(e.target.value)
                 handleInspectTenant(e.target.value)
               }}
-              className="bg-transparent text-slate-200 font-medium text-xs focus:outline-none cursor-pointer"
+              className="bg-transparent text-slate-800 font-medium text-xs focus:outline-none cursor-pointer"
             >
-              <option value="" className="bg-slate-900 text-slate-400">Select Client Hotel...</option>
+              <option value="" className="bg-white text-slate-500">Select Client Hotel...</option>
               {clients.map((c) => (
-                <option key={c.id} value={c.id} className="bg-slate-900 text-slate-200">
+                <option key={c.id} value={c.id} className="bg-white text-slate-900">
                   {c.name} ({c.code.toUpperCase()})
                 </option>
               ))}
@@ -101,7 +101,7 @@ export const ILAPlatformLayout: React.FC = () => {
           {/* Direct Link to Default Hotel Workspace */}
           <Link
             to="/app/frontdesk"
-            className="flex items-center gap-1.5 rounded-xl border border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 px-3 py-1.5 text-xs font-bold transition-all shadow-xs"
+            className="flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800 px-3 py-1.5 text-xs font-bold transition-all shadow-xs"
             title="Inspect Current Hotel Segment Workspace"
           >
             <ExternalLink className="h-3.5 w-3.5" />
@@ -109,15 +109,15 @@ export const ILAPlatformLayout: React.FC = () => {
           </Link>
 
           {/* User Profile Pill */}
-          <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-500/20 text-purple-300 font-black text-xs border border-purple-500/40">
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 text-purple-700 font-black text-xs border border-purple-200">
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div className="hidden xl:block text-left">
-              <div className="text-xs font-bold text-slate-200">
+              <div className="text-xs font-bold text-slate-900">
                 {user?.firstName || 'ILA Owner'}
               </div>
-              <div className="text-[10px] text-purple-400 font-mono">
+              <div className="text-[10px] text-purple-700 font-mono">
                 Company SuperUser
               </div>
             </div>
@@ -126,7 +126,7 @@ export const ILAPlatformLayout: React.FC = () => {
           {/* Sign Out */}
           <button
             onClick={handleLogout}
-            className="flex items-center gap-1 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 px-2.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
+            className="flex items-center gap-1 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 px-2.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
             title="Sign out of ILA Console"
           >
             <LogOut className="h-3.5 w-3.5" />
@@ -141,9 +141,9 @@ export const ILAPlatformLayout: React.FC = () => {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 px-6 py-4 text-center text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <footer className="border-t border-slate-200 bg-white px-6 py-4 text-center text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Server className="h-3.5 w-3.5 text-purple-400" />
+          <Server className="h-3.5 w-3.5 text-purple-600" />
           <span>ILA Multi-Tenant SaaS Engine • Version 2.4.0-Enterprise</span>
         </div>
         <div>

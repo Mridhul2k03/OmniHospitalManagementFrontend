@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useCallback } from 'react'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
@@ -13,6 +13,7 @@ import {
   CreditCard,
   Ban,
   Printer,
+  Loader2,
 } from 'lucide-react'
 
 const EMPTY_FOLIO: UnifiedFolio = {
@@ -33,7 +34,7 @@ const EMPTY_FOLIO: UnifiedFolio = {
 }
 
 export const FoliosHub: React.FC = () => {
-  const { success } = useToast()
+  const { success, error: toastError } = useToast()
   const [foliosList, setFoliosList] = useState<UnifiedFolio[]>([])
   const [folio, setFolio] = useState<UnifiedFolio>(EMPTY_FOLIO)
   const [loading, setLoading] = useState<boolean>(true)
@@ -49,6 +50,21 @@ export const FoliosHub: React.FC = () => {
   const [newDesc, setNewDesc] = useState('Evening Dry Cleaning Service')
   const [newAmount, setNewAmount] = useState('45.00')
   const [isPrinting, setIsPrinting] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  // Refresh folio from backend
+  const refreshFolio = useCallback(async (folioId: string) => {
+    try {
+      const updated = await foliosApi.getFolioById(folioId)
+      setFolio(updated)
+      setPaymentAmount(updated.balanceDue.toString())
+      // Update in list
+      setFoliosList(prev => prev.map(f => f.id === folioId ? updated : f))
+    } catch (err) {
+      console.error('Failed to refresh folio:', err)
+      toastError('Failed to refresh folio', 'Please try again')
+    }
+  }, [toastError])
 
   const handlePrintInvoice = async () => {
     if (!folio.id) return
@@ -81,54 +97,26 @@ export const FoliosHub: React.FC = () => {
         }
       })
       .catch((err) => {
-        console.warn('Backend folios unreachable:', err)
+        console.error('Backend folios unreachable:', err)
+        toastError('Failed to load folios', 'Could not connect to backend. Check connection.')
         setFoliosList([])
         setFolio(EMPTY_FOLIO)
       })
       .finally(() => setLoading(false))
-  }, [])
+  }, [toastError])
 
-  // Handle Post Charge
+  // Handle Post Charge - calls backend API
   const handlePostCharge = async (e: React.FormEvent) => {
     e.preventDefault()
-    const amt = parseFloat(newAmount) || 0
-    const tax = +(amt * 0.1).toFixed(2)
-    const total = +(amt + tax).toFixed(2)
+    if (isSubmitting) return
 
-    const newChargeItem: FolioChargeItem = {
-      id: `ch-${Date.now()}`,
-      folioId: folio.id,
-      category: newCategory as any,
-      outletName: newOutlet,
-      description: newDesc,
-      quantity: 1,
-      unitPrice: amt,
-      taxAmount: tax,
-      totalAmount: total,
-      postedAt: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      postedBy: 'Front Desk Operator',
-      isVoided: false,
+    const amt = parseFloat(newAmount) || 0
+    if (amt <= 0) {
+      toastError('Invalid amount', 'Charge amount must be greater than zero')
+      return
     }
 
-    setFolio((prev) => {
-      const updatedCharges = [...prev.charges, newChargeItem]
-      const updatedSubtotal = prev.subtotal + amt
-      const updatedTax = prev.totalTax + tax
-      const updatedTotal = prev.totalAmount + total
-      const updatedBalance = prev.balanceDue + total
-      return {
-        ...prev,
-        charges: updatedCharges,
-        subtotal: updatedSubtotal,
-        totalTax: updatedTax,
-        totalAmount: updatedTotal,
-        balanceDue: updatedBalance,
-      }
-    })
-
-    success('Charge Successfully Posted to Folio', `${newDesc} ($${total}) billed to Room ${folio.roomNumber}`)
-    setIsAddChargeOpen(false)
-
+    setIsSubmitting(true)
     try {
       await foliosApi.postCharge(folio.id, {
         department: (newCategory === 'restaurant' || newCategory === 'spa' || newCategory === 'laundry' || newCategory === 'minibar' ? newCategory : 'room') as any,
@@ -136,63 +124,79 @@ export const FoliosHub: React.FC = () => {
         amount: amt,
         referenceNumber: newOutlet,
       })
-    } catch (err) {
-      console.warn('Backend post charge error:', err)
+
+      // Refresh folio from backend to get authoritative state
+      await refreshFolio(folio.id)
+
+      success('Charge Successfully Posted to Folio', `${newDesc} ($${amt + amt * 0.1}) billed to Room ${folio.roomNumber}`)
+      setIsAddChargeOpen(false)
+    } catch (err: any) {
+      console.error('Backend post charge error:', err)
+      toastError('Failed to post charge', err?.message || 'Server error')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  // Handle Void Charge with mandatory reason
+  // Handle Void Charge with mandatory reason - calls backend API
   const handleConfirmVoid = async (reason?: string) => {
     if (!chargeToVoid) return
-    const target = chargeToVoid
-    setFolio((prev) => {
-      const updatedCharges = prev.charges.map((ch) =>
-        ch.id === target.id ? { ...ch, isVoided: true, voidReason: reason } : ch
-      )
-      const updatedTotal = prev.totalAmount - target.totalAmount
-      const updatedBalance = prev.balanceDue - target.totalAmount
-      return {
-        ...prev,
-        charges: updatedCharges,
-        totalAmount: updatedTotal,
-        balanceDue: Math.max(0, updatedBalance),
-      }
-    })
-    success('Charge Voided with Audit Trail', `Voided "${target.description}". Reason: ${reason}`)
-    setChargeToVoid(null)
+    if (!reason || !reason.trim()) {
+      toastError('Reason required', 'A void reason is mandatory for audit compliance')
+      return
+    }
 
+    setIsSubmitting(true)
     try {
-      await foliosApi.voidCharge(folio.id, target.id, reason || 'Front desk correction')
-    } catch (err) {
-      console.warn('Backend void charge error:', err)
+      await foliosApi.voidCharge(folio.id, chargeToVoid.id, reason)
+
+      // Refresh folio from backend to get authoritative state
+      await refreshFolio(folio.id)
+
+      success('Charge Voided with Audit Trail', `Voided "${chargeToVoid.description}". Reason: ${reason}`)
+      setChargeToVoid(null)
+    } catch (err: any) {
+      console.error('Backend void charge error:', err)
+      toastError('Failed to void charge', err?.message || 'Server error')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  // Handle Settle Payment
+  // Handle Settle Payment - calls backend API
   const handleSettlePayment = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isSubmitting) return
+
     const amt = parseFloat(paymentAmount) || 0
-    const newPay = {
-      id: `pay-${Date.now()}`,
-      folioId: folio.id,
-      paymentMethod,
-      amount: amt,
-      transactionReference: `TXN-${Math.random().toString(36).substring(2, 9).toUpperCase()}`,
-      timestamp: new Date().toISOString().slice(0, 16).replace('T', ' '),
-      processedBy: 'Cashier Terminal',
-      status: 'settled' as const,
+    if (amt <= 0) {
+      toastError('Invalid amount', 'Payment amount must be greater than zero')
+      return
+    }
+    if (amt > folio.balanceDue + 0.01) { // Allow small rounding
+      toastError('Invalid amount', `Payment cannot exceed balance due ($${folio.balanceDue})`)
+      return
     }
 
-    setFolio((prev) => ({
-      ...prev,
-      payments: [...prev.payments, newPay],
-      totalPaid: prev.totalPaid + amt,
-      balanceDue: Math.max(0, prev.balanceDue - amt),
-      status: prev.balanceDue - amt <= 0 ? 'settled' : 'open',
-    }))
+    setIsSubmitting(true)
+    try {
+      await foliosApi.settlePayment(folio.id, {
+        amount: amt,
+        paymentMethod,
+        transactionReference: `TXN-${Date.now()}`,
+      })
 
-    success('Payment Collected & Settled', `$${amt.toLocaleString()} processed via ${paymentMethod.replace(/_/g, ' ').toUpperCase()}`)
-    setIsPaymentOpen(false)
+      // Refresh folio from backend to get authoritative state
+      await refreshFolio(folio.id)
+
+      success('Payment Collected & Settled', `$${amt.toLocaleString()} processed via ${paymentMethod.replace(/_/g, ' ').toUpperCase()}`)
+      setIsPaymentOpen(false)
+    } catch (err: any) {
+      console.error('Backend settle payment error:', err)
+      toastError('Failed to process payment', err?.message || 'Server error')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   if (!loading && (!folio.id || foliosList.length === 0)) {

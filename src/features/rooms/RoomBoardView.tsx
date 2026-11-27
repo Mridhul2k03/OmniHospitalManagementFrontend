@@ -462,7 +462,17 @@ export const RoomBoardView: React.FC = () => {
           {[
             { label: 'All Floors', val: 'all' as const },
             ...(floors.length > 0
-              ? floors.map((fl) => ({ label: fl.name, val: fl.number ?? fl.floorNumber ?? 1 }))
+              ? Array.from(
+                  floors
+                    .reduce((map, fl) => {
+                      const val = fl.number ?? fl.floorNumber ?? 1
+                      if (!map.has(val)) {
+                        map.set(val, { label: fl.name || `Floor ${val}`, val })
+                      }
+                      return map
+                    }, new Map<number, { label: string; val: number }>())
+                    .values()
+                ).sort((a, b) => a.val - b.val)
               : [
                   { label: 'Floor 1 (Ground & Garden)', val: 1 },
                   { label: 'Floor 2 (Ocean Executive)', val: 2 },
@@ -471,7 +481,7 @@ export const RoomBoardView: React.FC = () => {
                 ]),
           ].map((fl) => (
             <button
-              key={fl.label}
+              key={String(fl.val)}
               onClick={() => setSelectedFloor(fl.val)}
               className={`rounded-md px-3 py-1 font-medium transition-colors cursor-pointer ${
                 selectedFloor === fl.val ? 'bg-primary text-primary-foreground font-bold' : 'bg-muted hover:bg-muted/80 text-muted-foreground'
@@ -516,7 +526,9 @@ export const RoomBoardView: React.FC = () => {
               <p className="mt-2 text-xs text-muted-foreground truncate">{room.roomTypeName}</p>
 
               <div className="mt-3 pt-3 border-t border-border/80 flex items-center justify-between text-xs">
-                <span className="font-semibold text-foreground">${room.currentRate}/night</span>
+                <span className="font-semibold text-foreground">
+                  ${room.currentRate ?? roomTypes.find((rt) => rt.name === room.roomTypeName)?.basePrice ?? 250}/night
+                </span>
                 {room.currentGuestName ? (
                   <span className="text-[11px] font-medium text-sky-600 dark:text-sky-400 truncate max-w-[120px]">
                     👤 {room.currentGuestName}

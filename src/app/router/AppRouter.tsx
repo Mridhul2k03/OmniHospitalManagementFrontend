@@ -12,6 +12,7 @@ import { ILAPlatformLayout } from '@/app/layouts/ILAPlatformLayout'
 import { RouteLoader } from '@/components/ui/route-loader'
 
 // Code-split dynamic route imports
+const LandingPage = React.lazy(() => import('@/features/landing/LandingPage').then(m => ({ default: m.LandingPage })))
 const SuperAdminHub = React.lazy(() => import('@/features/superadmin/SuperAdminHub').then(m => ({ default: m.SuperAdminHub })))
 const LoginView = React.lazy(() => import('@/features/auth/LoginView').then(m => ({ default: m.LoginView })))
 const AdminLoginView = React.lazy(() => import('@/features/auth/AdminLoginView').then(m => ({ default: m.AdminLoginView })))
@@ -48,8 +49,8 @@ export const AppRouter: React.FC = () => {
     <BrowserRouter>
       <Suspense fallback={<RouteLoader />}>
         <Routes>
-          {/* Root Redirect */}
-          <Route path="/" element={<Navigate to="/app/frontdesk" replace />} />
+          {/* Public Landing Page */}
+          <Route path="/" element={<LandingPage />} />
 
           {/* Auth Group (Hotel Tenant Staff & Guests) */}
           <Route path="/auth" element={<AuthLayout />}>

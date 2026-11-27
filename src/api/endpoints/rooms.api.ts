@@ -15,11 +15,12 @@ export const roomsApi = {
   getRooms: async (params?: RoomFilterParams): Promise<Room[]> => {
     const response = await apiClient.get<Room[]>('/rooms/', { params })
     const data = Array.isArray(response.data) ? response.data : ((response.data as { results?: Room[]; data?: Room[] })?.data || (response.data as { results?: Room[]; data?: Room[] })?.results || [])
-    return data.map((r: Room & { room_number?: string; room_type_name?: string; floor_number?: number }) => ({
+    return data.map((r: Room & { room_number?: string; room_type_name?: string; floor_number?: number; base_price?: number | string; current_rate?: number | string }) => ({
       ...r,
       roomNumber: r.roomNumber || r.room_number || '',
       roomTypeName: r.roomTypeName || r.room_type_name || 'Standard Deluxe',
-      floorNumber: r.floorNumber || r.floor_number || 1,
+      floorNumber: r.floorNumber ?? r.floor_number ?? 1,
+      currentRate: Number(r.currentRate ?? r.current_rate ?? r.base_price ?? 250),
       status: (r.status || 'available').toLowerCase() as RoomStatus,
       isClean: (r.status || '').toLowerCase() === 'available' || (r.status || '').toLowerCase() === 'inspection',
       isOccupied: (r.status || '').toLowerCase() === 'occupied',

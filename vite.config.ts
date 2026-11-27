@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port,
+      allowedHosts: true,
       proxy: {
         '/api': {
           target: backendTarget,
@@ -34,6 +35,9 @@ export default defineConfig(({ mode }) => {
           ws: true,
           changeOrigin: true,
           secure: false,
+          headers: {
+            'X-Tunnel-Skip-Anti-Abuse-Page': 'true',
+          },
         },
       },
     },
